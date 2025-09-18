@@ -8,6 +8,7 @@ function Avaliacao() {
       titulo: "Avaliação 1",
       tipo: "Avaliação Aluno",
       aluno: "Aluno 1",
+      img: "https://i.pravatar.cc/100?img=1",
       dataInicial: "01/09/2025",
       dataFinal: "10/09/2025",
       status: "Em aberto"
@@ -17,6 +18,7 @@ function Avaliacao() {
       titulo: "Avaliação 2",
       tipo: "Avaliaação Experiencia",
       aluno: "Aluno 2",
+      img: "https://i.pravatar.cc/100?img=2",
       dataInicial: "05/09/2025",
       dataFinal: "15/09/2025",
       status: "Finalizado"
@@ -26,6 +28,7 @@ function Avaliacao() {
       titulo: "Avaliação 3",
       tipo: "Avaliaação Experiencia",
       aluno: "Aluno 3",
+      img: "https://i.pravatar.cc/100?img=3",
       dataInicial: "05/09/2025",
       dataFinal: "15/09/2025",
       status: "Cancelado"
@@ -33,7 +36,6 @@ function Avaliacao() {
   ]);
   const statusUnicos = [...new Set(avaliacoes.map(a => a.status))];
   const tiposUnicos = [...new Set(avaliacoes.map(a => a.tipo))];
-  const alunosUnicos = [...new Set(avaliacoes.map(a => a.aluno))];
 
   return (
     <div className="mx-auto mt-12 bg-white p-8 rounded-2xl shadow-lg">
@@ -95,7 +97,19 @@ function Avaliacao() {
               >
                 <td className="py-3 px-4 font-semibold text-blue-700">{a.id}</td>
                 <td className="py-3 px-4 font-semibold text-blue-700">{a.titulo}</td>
-                <td className="py-3 px-4">{a.aluno}</td>
+                {/* Imagem do aluno com tooltip */}
+                <td className="py-3 px-4">
+                  <div className="relative group flex items-center justify-center">
+                    <img
+                      src={a.img}
+                      alt={a.aluno}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-blue-200 shadow"
+                    />
+                    <span className="absolute left-12 z-10 opacity-0 group-hover:opacity-100 bg-gray-800 text-white text-xs rounded px-2 py-1 transition whitespace-nowrap pointer-events-none">
+                      {a.aluno}
+                    </span>
+                  </div>
+                </td>
                 <td className="py-3 px-4">{a.tipo}</td>
                 <td className="py-3 px-4">{a.dataInicial}</td>
                 <td className="py-3 px-4">{a.dataFinal}</td>
