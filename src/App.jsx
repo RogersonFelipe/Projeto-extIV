@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, useRef } from "react";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import Home from "./home/Home";
 import Login from "./login/Login";
@@ -28,7 +28,22 @@ function PrivateRoute({ children }) {
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const usuario = useSelector((state) => state.auth.usuario);
+  const avatarRef = useRef(null);
+
+  // Fecha dropdown ao clicar fora
+  React.useEffect(() => {
+    function handleClickOutside(e) {
+      if (avatarRef.current && !avatarRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    }
+    if (dropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [dropdownOpen]);
 
   return (
     <BrowserRouter>
@@ -103,14 +118,59 @@ function App() {
                 )}
               </button>
               <div
-                className={`text-white font-bold text-xl mt-5 text-left transition-all duration-300 ${
-                  sidebarOpen
+                className={`text-white font-bold text-xl mt-5 text-left transition-all duration-300 ${sidebarOpen
                     ? "opacity-100"
                     : "opacity-0 pointer-events-none h-0 overflow-hidden"
-                }`}
+                  }`}
               >
                 Instituto Diomício Freitas
               </div>
+
+              {/* Área do usuário com avatar, nome e dropdown */}
+              {usuario && (
+                <div className="flex flex-col items-center mt-6 mb-2 relative" ref={avatarRef}>
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen((open) => !open)}
+                    className="w-14 h-14 rounded-full border-4 border-white shadow-lg bg-gray-200 flex items-center justify-center overflow-hidden focus:outline-none"
+                    style={{ cursor: "pointer" }}
+                  >
+                    <img
+                      src={usuario.foto || "https://i.pravatar.cc/100"}
+                      alt="Usuário"
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  </button>
+                  <span className={`text-white font-bold text-xl mt-5 text-center transition-all duration-300 ${sidebarOpen
+                      ? "opacity-100"
+                      : "opacity-0 pointer-events-none h-0 overflow-hidden"
+                    }`}>
+                    {usuario.nome}
+                  </span>
+                  {dropdownOpen && sidebarOpen && (
+                    <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-white border rounded-xl shadow-lg py-2 px-4 z-50 min-w-[140px]">
+                      <ul className="flex flex-col gap-2">
+                        <li>
+                          <button className="w-full text-left text-blue-700 hover:underline">
+                            Perfil
+                          </button>
+                        </li>
+                        <li>
+                          <button className="w-full text-left text-blue-700 hover:underline">
+                            Configurações
+                          </button>
+                        </li>
+                        <li>
+                          <button className="w-full text-left text-red-500 hover:underline">
+                            Sair
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-col space-y-4 overflow-y-auto mt-8">
                 <Link
                   to="/"
@@ -146,9 +206,8 @@ function App() {
                     {sidebarOpen && "Cadastro"}
                   </span>
                   <div
-                    className={`ml-4 mt-1 flex flex-col space-y-2 ${
-                      sidebarOpen ? "" : "hidden"
-                    }`}
+                    className={`ml-4 mt-1 flex flex-col space-y-2 ${sidebarOpen ? "" : "hidden"
+                      }`}
                   >
                     <Link
                       to="/cadastro-aluno"

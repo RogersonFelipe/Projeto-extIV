@@ -1,10 +1,12 @@
 {
   "usuarios": 
   [
-    { 
-      "id": 1, 
-      "email": "teste@teste.com", 
-      "senha": "123456" 
+   {
+      "id": 1,
+      "email": "teste@teste.com",
+      "senha": "123456",
+      "nome": "Usuário de Teste",
+      "foto": "https://i.pravatar.cc/100"
     }
   ]
 }
