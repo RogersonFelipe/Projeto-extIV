@@ -104,7 +104,7 @@ function CadastroEmpresa() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-100 via-blue-200 to-blue-400 p-6">
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-blue-200">
       <div className="w-full max-w-lg bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl p-10 border border-blue-100">
         <div className="flex flex-col items-center mb-8">
           <div className="bg-blue-600 rounded-full p-4 shadow-lg mb-3">

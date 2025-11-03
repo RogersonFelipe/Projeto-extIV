@@ -10,7 +10,7 @@
   ],
   "alunos": [
     {
-      "id": 1,
+      "id": "1",
       "nome": "Aluno Exemplo 1",
       "cpf": "000.000.000-00",
       "telefone": "(11) 99999-0001",
@@ -18,7 +18,7 @@
       "foto": "https://i.pravatar.cc/100?img=11"
     },
     {
-      "id": 2,
+      "id": "2",
       "nome": "Aluno Exemplo 2",
       "cpf": "111.111.111-11",
       "telefone": "(11) 99999-0002",
@@ -28,7 +28,7 @@
   ],
   "empresas": [
     {
-      "id": 1,
+      "id": "1",
       "nomeFantasia": "Empresa Exemplo 1",
       "cnpj": "12.345.678/0001-90",
       "telefone": "(11) 33333-4444",
@@ -42,7 +42,7 @@
       "foto": ""
     },
     {
-      "id": 2,
+      "id": "2",
       "nomeFantasia": "Empresa Exemplo 2",
       "cnpj": "98.765.432/0001-10",
       "telefone": "(21) 33333-5555",
