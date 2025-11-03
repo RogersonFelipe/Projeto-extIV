@@ -95,5 +95,16 @@
       "complemento": "Ap104",
       "foto": ""
     }
+  ],
+  "encaminhados": [
+    {
+      "id": "dbdb",
+      "nome": "teste",
+      "dataAdmissao": "2025-11-02",
+      "empresa": "Empresa Exemplo 2",
+      "funcao": "teste",
+      "contatoRH": "teste",
+      "dataDesligamento": "2025-11-05"
+    }
   ]
 }
