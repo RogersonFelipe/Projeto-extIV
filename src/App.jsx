@@ -15,6 +15,7 @@ import Editar_Avaliacao from "./avaliacao/editar-avaliacao/Editar_Avaliacao";
 import Perfil from "./perfil/Perfil";
 import Cadastro_Usuario from "./cadastro-usuario/Cadastro_Usuario";
 import Avaliacoes_Finalizadas from "./avaliacao/avaliacoes-finalizadas/Avaliacoes_Finalizadas";
+import GerenciarRegistros from "./admin/GerenciarRegistros";
 import "./App.css";
 
 
@@ -172,10 +173,7 @@ function handleLogout() {
               )}
 
               <div className="flex flex-col space-y-4 overflow-y-auto mt-8">
-                <Link
-                  to="/"
-                  className="flex items-center gap-2 text-white font-semibold hover:bg-blue-700 rounded px-3 py-2 transition"
-                >
+                <Link to="/" className="flex items-center gap-2 text-white font-semibold hover:bg-blue-700 rounded px-3 py-2 transition">
                   <span className="material-icons-outlined">home</span>
                   {sidebarOpen && "Home"}
                 </Link>
@@ -229,6 +227,10 @@ function handleLogout() {
                     </Link>
                   </div>
                 </div>
+                <Link to="/admin/gerenciar" className="flex items-center gap-2 text-white font-semibold hover:bg-blue-700 rounded px-3 py-2 transition">
+                  <span className="material-icons-outlined">admin_panel_settings</span>
+                  {sidebarOpen && "Gerenciar"}
+                </Link>
               </div>
             </div>
           </>
@@ -334,6 +336,14 @@ function handleLogout() {
               <PrivateRoute>
                 <Perfil />
               </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin/gerenciar"
+              element={
+                <PrivateRoute>
+                  <GerenciarRegistros />
+                </PrivateRoute>
               }
             />
           </Routes>
