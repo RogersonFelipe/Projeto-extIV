@@ -5,19 +5,38 @@ export const login = createAsyncThunk(
   "auth/login",
   async ({ email, senha }, { rejectWithValue }) => {
     try {
-      const res = await axios.get(`http://localhost:3000/usuarios?email=${email}&senha=${senha}`);
-      if (res.data.length > 0) {
+      const res = await axios.get(
+        `http://localhost:3000/usuarios`,
+        { params: { email, senha } }
+      );
+      if (Array.isArray(res.data) && res.data.length > 0) {
         return res.data[0];
-      } else {
-        return rejectWithValue("E-mail ou senha inválidos");
       }
+      return rejectWithValue("E-mail ou senha inválidos");
     } catch (err) {
       return rejectWithValue("Erro ao conectar ao servidor");
     }
   }
 );
 
-// Persistência do usuário no localStorage
+export const updateProfileAsync = createAsyncThunk(
+  "auth/updateProfileAsync",
+  async (dadosAtualizados, { getState, rejectWithValue }) => {
+    try {
+      const { auth: { usuario } } = getState();
+      if (!usuario?.id) return rejectWithValue("Usuário não autenticado.");
+
+      const res = await axios.patch(
+        `http://localhost:3000/usuarios/${usuario.id}`,
+        dadosAtualizados
+      );
+      return res.data;
+    } catch (err) {
+      return rejectWithValue("Erro ao atualizar o perfil no servidor.");
+    }
+  }
+);
+
 const initialUser = (() => {
   try {
     const u = localStorage.getItem("usuario");
@@ -33,12 +52,20 @@ const authSlice = createSlice({
     usuario: initialUser,
     loading: false,
     error: null,
+    saving: false,
+    saveError: null,
   },
   reducers: {
     logout(state) {
       state.usuario = null;
       state.error = null;
       localStorage.removeItem("usuario");
+    },
+
+    updateProfile(state, action) {
+      if (!state.usuario) return;
+      state.usuario = { ...state.usuario, ...action.payload };
+      localStorage.setItem("usuario", JSON.stringify(state.usuario));
     },
   },
   extraReducers: (builder) => {
@@ -56,10 +83,24 @@ const authSlice = createSlice({
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
         state.usuario = null;
-        state.error = action.payload;
+        state.error = action.payload || "Falha no login";
+      })
+
+      .addCase(updateProfileAsync.pending, (state) => {
+        state.saving = true;
+        state.saveError = null;
+      })
+      .addCase(updateProfileAsync.fulfilled, (state, action) => {
+        state.saving = false;
+        state.usuario = { ...state.usuario, ...action.payload };
+        localStorage.setItem("usuario", JSON.stringify(state.usuario));
+      })
+      .addCase(updateProfileAsync.rejected, (state, action) => {
+        state.saving = false;
+        state.saveError = action.payload || "Falha ao salvar perfil";
       });
   },
 });
 
-export const { logout } = authSlice.actions;
+export const { logout, updateProfile } = authSlice.actions;
 export default authSlice.reducer;

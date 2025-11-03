@@ -1,112 +1,113 @@
 import { useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import * as yup from "yup";
 
-function maskCPF(value) {
-  return value
-    .replace(/\D/g, "")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d{1,2})$/, "$1-$2")
-    .slice(0, 14);
-}
-
-function maskTelefone(value) {
-  return value
-    .replace(/\D/g, "")
-    .replace(/^(\d{2})(\d)/, "($1) $2")
-    .replace(/(\d{5})(\d{1,4})$/, "$1-$2")
-    .slice(0, 15);
-}
-
-function maskData(value) {
-  return value
-    .replace(/\D/g, "")
-    .replace(/(\d{2})(\d)/, "$1/$2")
-    .replace(/(\d{2})(\d)/, "$1/$2")
-    .slice(0, 10);
-}
-
 const schema = yup.object().shape({
-  nome: yup.string().required("Nome é obrigatório"),
-  cpf: yup
+  nome: yup.string().trim().required("Nome é obrigatório"),
+  email: yup
     .string()
-    .matches(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "CPF inválido. Use o formato 000.000.000-00")
-    .required("CPF é obrigatório"),
-  responsavel: yup.string().required("Nome do responsável é obrigatório"),
-  telefone: yup
+    .trim()
+    .email("E-mail inválido")
+    .required("E-mail é obrigatório"),
+  senha: yup
     .string()
-    .matches(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Telefone inválido. Ex: (99) 99999-9999")
-    .required("Telefone é obrigatório"),
-  nascimento: yup
+    .required("Senha é obrigatória"),
+  confirmarSenha: yup
     .string()
-    .matches(
-      /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/,
-      "Data de nascimento inválida. Use o formato dd/mm/aaaa"
-    )
-    .required("Data de nascimento é obrigatória"),
+    .oneOf([yup.ref("senha")], "As senhas não coincidem")
+    .required("Confirme a senha"),
+
 });
 
-function CadastroAluno() {
+function Cadastro_Usuario() {
+  const navigate = useNavigate();
+
   const [imgPreview, setImgPreview] = useState(null);
   const [loading, setLoading] = useState(false);
+
   const [form, setForm] = useState({
     nome: "",
-    cpf: "",
-    responsavel: "",
-    telefone: "",
-    nascimento: "",
+    email: "",
+    senha: "",
+    confirmarSenha: "",
   });
+
   const [errors, setErrors] = useState({});
 
   function handleImgChange(e) {
-    const file = e.target.files[0];
-    if (file) {
-      setImgPreview(URL.createObjectURL(file));
-    } else {
+    const file = e.target.files?.[0];
+    if (!file) {
       setImgPreview(null);
+      return;
     }
+    const reader = new FileReader();
+    reader.onloadend = () => setImgPreview(reader.result);
+    reader.readAsDataURL(file);
   }
 
   function handleChange(e) {
     const { name, value } = e.target;
-    let maskedValue = value;
-
-    if (name === "cpf") maskedValue = maskCPF(value);
-    if (name === "telefone") maskedValue = maskTelefone(value);
-    if (name === "nascimento") maskedValue = maskData(value);
-
-    setForm({ ...form, [name]: maskedValue });
-    setErrors({ ...errors, [name]: "" });
+    setForm((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
   }
 
   async function handleBlur(e) {
     const { name, value } = e.target;
     try {
       await yup.reach(schema, name).validate(value);
-      setErrors({ ...errors, [name]: "" });
+      setErrors((prev) => ({ ...prev, [name]: "" }));
     } catch (err) {
-      setErrors({ ...errors, [name]: err.message });
+      setErrors((prev) => ({ ...prev, [name]: err.message }));
     }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setLoading(true);
+
     try {
       await schema.validate(form, { abortEarly: false });
       setErrors({});
-      alert("Aluno cadastrado com sucesso!");
 
+      setLoading(true);
+
+      const existente = await axios.get(
+        `http://localhost:3000/usuarios?email=${encodeURIComponent(form.email)}`
+      );
+      if (existente.data.length > 0) {
+        setLoading(false);
+        setErrors((prev) => ({
+          ...prev,
+          email: "Este e-mail já está cadastrado",
+        }));
+        return;
+      }
+
+      await axios.post("http://localhost:3000/usuarios", {
+        nome: form.nome.trim(),
+        email: form.email.trim(),
+        senha: form.senha,
+        foto: imgPreview || "",
+      });
+
+      alert("Usuário cadastrado com sucesso!");
+      navigate("/");
     } catch (err) {
       if (err instanceof yup.ValidationError) {
         const newErrors = {};
         err.inner.forEach((error) => {
-          newErrors[error.path] = error.message;
+          if (error.path && !newErrors[error.path]) {
+            newErrors[error.path] = error.message;
+          }
         });
         setErrors(newErrors);
+      } else {
+        console.error(err);
+        alert("Erro ao cadastrar usuário!");
       }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (
@@ -115,13 +116,14 @@ function CadastroAluno() {
         <div className="flex flex-col items-center mb-8">
           <div className="bg-blue-600 rounded-full p-4 shadow-lg mb-3">
             <span className="material-icons-outlined text-white text-4xl">
-              school
+              person_add
             </span>
           </div>
           <h2 className="text-4xl font-extrabold text-blue-800 text-center tracking-tight drop-shadow">
-            Cadastro de Aluno
+            Cadastrar Usuário
           </h2>
         </div>
+
         <form className="flex flex-col gap-6" onSubmit={handleSubmit} noValidate>
           <div className="flex flex-col items-center gap-3">
             <label className="relative cursor-pointer group">
@@ -149,6 +151,7 @@ function CadastroAluno() {
               </span>
             </label>
           </div>
+
           <div className="relative">
             <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
               person
@@ -159,97 +162,92 @@ function CadastroAluno() {
               value={form.nome}
               onChange={handleChange}
               onBlur={handleBlur}
-              placeholder="Nome do Aluno"
-              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.nome ? "border-red-400" : "border-gray-200"}`}
-              required
+              placeholder="Nome completo"
+              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${
+                errors.nome ? "border-red-400" : "border-gray-200"
+              }`}
               autoComplete="off"
+              required
             />
             {errors.nome && (
-              <span className="text-red-500 text-xs ml-2 block mt-1">{errors.nome}</span>
+              <span className="text-red-500 text-xs ml-2 block mt-1">
+                {errors.nome}
+              </span>
             )}
           </div>
+
           <div className="relative">
             <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
-              badge
+              mail
             </span>
             <input
-              type="text"
-              name="cpf"
-              value={form.cpf}
+              type="email"
+              name="email"
+              value={form.email}
               onChange={handleChange}
               onBlur={handleBlur}
-              placeholder="CPF"
-              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.cpf ? "border-red-400" : "border-gray-200"}`}
-              maxLength={14}
-              required
+              placeholder="E-mail"
+              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${
+                errors.email ? "border-red-400" : "border-gray-200"
+              }`}
               autoComplete="off"
-              inputMode="numeric"
+              required
             />
-            {errors.cpf && (
-              <span className="text-red-500 text-xs ml-2 block mt-1">{errors.cpf}</span>
+            {errors.email && (
+              <span className="text-red-500 text-xs ml-2 block mt-1">
+                {errors.email}
+              </span>
             )}
           </div>
+
           <div className="relative">
             <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
-              supervisor_account
+              lock
             </span>
             <input
-              type="text"
-              name="responsavel"
-              value={form.responsavel}
+              type="password"
+              name="senha"
+              value={form.senha}
               onChange={handleChange}
               onBlur={handleBlur}
-              placeholder="Nome Responsável"
-              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.responsavel ? "border-red-400" : "border-gray-200"}`}
-              required
+              placeholder="Senha "
+              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${
+                errors.senha ? "border-red-400" : "border-gray-200"
+              }`}
               autoComplete="off"
+              required
             />
-            {errors.responsavel && (
-              <span className="text-red-500 text-xs ml-2 block mt-1">{errors.responsavel}</span>
+            {errors.senha && (
+              <span className="text-red-500 text-xs ml-2 block mt-1">
+                {errors.senha}
+              </span>
             )}
           </div>
+
           <div className="relative">
             <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
-              call
+              lock
             </span>
             <input
-              type="text"
-              name="telefone"
-              value={form.telefone}
+              type="password"
+              name="confirmarSenha"
+              value={form.confirmarSenha}
               onChange={handleChange}
               onBlur={handleBlur}
-              placeholder="Telefone Responsável"
-              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.telefone ? "border-red-400" : "border-gray-200"}`}
-              maxLength={15}
-              required
+              placeholder="Confirmar senha"
+              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${
+                errors.confirmarSenha ? "border-red-400" : "border-gray-200"
+              }`}
               autoComplete="off"
-              inputMode="numeric"
+              required
             />
-            {errors.telefone && (
-              <span className="text-red-500 text-xs ml-2 block mt-1">{errors.telefone}</span>
+            {errors.confirmarSenha && (
+              <span className="text-red-500 text-xs ml-2 block mt-1">
+                {errors.confirmarSenha}
+              </span>
             )}
           </div>
-          <div className="relative">
-            <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
-              cake
-            </span>
-            <input
-              type="text"
-              name="nascimento"
-              value={form.nascimento}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              placeholder="Data de Nascimento (dd/mm/aaaa)"
-              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.nascimento ? "border-red-400" : "border-gray-200"}`}
-              maxLength={10}
-              required
-              autoComplete="off"
-              inputMode="numeric"
-            />
-            {errors.nascimento && (
-              <span className="text-red-500 text-xs ml-2 block mt-1">{errors.nascimento}</span>
-            )}
-          </div>
+
           <button
             type="submit"
             disabled={loading}
@@ -270,4 +268,4 @@ function CadastroAluno() {
   );
 }
 
-export default CadastroAluno;
+export default Cadastro_Usuario;

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import * as yup from "yup";
 
-// Máscara para CPF
 function maskCPF(value) {
   return value
     .replace(/\D/g, "")
