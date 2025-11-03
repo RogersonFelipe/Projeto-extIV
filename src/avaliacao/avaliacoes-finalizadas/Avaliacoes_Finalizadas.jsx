@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 function Avaliacoes_Finalizadas() {
-  // Dados fictícios para visualização
+
   const dados = {
     titulo: "Avaliação 1",
     tipo: "Aluno 1",
@@ -13,8 +13,6 @@ function Avaliacoes_Finalizadas() {
     { texto: "Como foi o desempenho?", tipo: "texto" },
     { texto: "Selecione o nível", tipo: "combo" }
   ]);
-
-  // Botão de exportar apenas visual, sem funcionalidade
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">

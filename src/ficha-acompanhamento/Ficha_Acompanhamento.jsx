@@ -1,7 +1,6 @@
 import { useState } from "react";
 import * as yup from "yup";
 
-// Função para aplicar máscara na data dd/mm/yyyy
 function maskData(value) {
   return value
     .replace(/\D/g, "")

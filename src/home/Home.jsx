@@ -33,22 +33,18 @@ function Home() {
     <div className="w-full  bg-white rounded-2xl shadow-xl p-8">
       <div className="flex justify-center min-h-screen p-8">
         <div className="grid md:grid-cols-2 gap-8 max-w-6xl w-full">
-          
-          {/* Coluna das imagens */}
           <div className="flex flex-col gap-6">
             <img 
               src={Img2}
               alt="Atividade 2" 
               className="rounded-2xl shadow-lg w-full object-cover"
             /> 
-            {/* Gráfico de Colunas */}
             <div className="bg-blue-50 rounded-xl p-4 shadow">
               <h2 className="text-lg font-bold text-blue-700 mb-2">Alunos por mês</h2>
               <Bar data={barData} />
             </div>
           </div>
 
-          {/* Coluna do texto */}
           <div className="flex flex-col justify-start text-gray-600">
             <h1 className="text-4xl md:text-5xl font-bold text-blue-700 mb-4">
               Bem-vindo ao Instituto
@@ -57,7 +53,7 @@ function Home() {
               Há 40 anos oportunizando a jovens e adultos com deficiência intelectual o pleno
               exercício da cidadania e sua inclusão no mercado de trabalho.
             </p>
-            {/* Gráfico de Pizza */}
+
             <div className="bg-blue-50 rounded-xl p-4 shadow mt-4">
               <h2 className="text-lg font-bold text-blue-700 mb-2">Status das avaliações</h2>
               <Pie data={pieData} />

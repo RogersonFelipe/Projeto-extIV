@@ -1,7 +1,6 @@
 import { useState } from "react";
 import * as yup from "yup";
 
-// Máscara para CNPJ
 function maskCNPJ(value) {
   return value
     .replace(/\D/g, "")
@@ -12,7 +11,6 @@ function maskCNPJ(value) {
     .slice(0, 18);
 }
 
-// Máscara para telefone
 function maskTelefone(value) {
   return value
     .replace(/\D/g, "")
@@ -21,7 +19,6 @@ function maskTelefone(value) {
     .slice(0, 15);
 }
 
-// Máscara para CEP
 function maskCEP(value) {
   return value
     .replace(/\D/g, "")
