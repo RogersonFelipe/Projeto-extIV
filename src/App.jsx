@@ -33,14 +33,29 @@ function PrivateRoute({ children }) {
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [cadastroOpen, setCadastroOpen] = useState(false);
   const usuario = useSelector((state) => state.auth.usuario);
   const avatarRef = useRef(null);
   const dispatch = useDispatch();
 
-function handleLogout() {
-  dispatch(logout());
-  window.location.href = "/login";
-}
+
+  const cadastroRef = useRef(null);
+  React.useEffect(() => {
+    const el = cadastroRef.current;
+    if (!el) return;
+    if (!sidebarOpen || !cadastroOpen) {
+      el.style.maxHeight = "0px";
+    } else {
+      el.style.maxHeight = el.scrollHeight + "px";
+    }
+    el.style.overflow = "hidden";
+    el.style.transition = "max-height 260ms ease";
+  }, [cadastroOpen, sidebarOpen]);
+  
+  function handleLogout() {
+    dispatch(logout());
+    window.location.href = "/login";
+  }
 
   React.useEffect(() => {
     function handleClickOutside(e) {
@@ -161,11 +176,6 @@ function handleLogout() {
                             Perfil
                           </Link>
                         </li>
-                        <li>
-                          <button onClick={handleLogout} className="w-full text-left text-red-500 hover:underline">
-                            Sair
-                          </button>
-                        </li>
                       </ul>
                     </div>
                   )}
@@ -198,14 +208,29 @@ function handleLogout() {
                   <span className="material-icons-outlined">star_rate</span>
                   {sidebarOpen && "Avaliações"}
                 </Link>
-                <div className="group cadastro">
-                  <span className="flex items-center gap-2 text-white font-semibold rounded px-3 py-2">
+                {/* Grupo "Cadastro" agora clicável para expandir/recolher */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setCadastroOpen((s) => !s)}
+                    className="flex items-center gap-2 w-full text-white font-semibold hover:bg-blue-700 rounded px-3 py-2 transition"
+                    aria-expanded={cadastroOpen}
+                  >
                     <span className="material-icons-outlined">person_add</span>
-                    {sidebarOpen && "Cadastro"}
-                  </span>
+                    {sidebarOpen && <span className="flex-1 text-left">Cadastro</span>}
+                    {sidebarOpen && (
+                      <span className="material-icons-outlined text-sm">
+                        {cadastroOpen ? "expand_less" : "expand_more"}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* subitens animados */}
                   <div
-                    className={`ml-4 mt-1 flex flex-col space-y-2 ${sidebarOpen ? "" : "hidden"
-                      }`}
+                    ref={cadastroRef}
+                    className="ml-4 mt-1 flex flex-col space-y-2"
+                    // deixa o estilo inicial em 0 para que o efeito ocorra corretamente no primeiro render
+                    style={{ maxHeight: "0px", overflow: "hidden", transition: "max-height 260ms ease" }}
                   >
                     <Link
                       to="/cadastro-aluno"
@@ -231,6 +256,15 @@ function handleLogout() {
                   <span className="material-icons-outlined">admin_panel_settings</span>
                   {sidebarOpen && "Gerenciar"}
                 </Link>
+
+                {/* botão Sair mantido no padrão do menu */}
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 text-white font-semibold hover:bg-blue-700 rounded px-3 py-2 transition text-left"
+                >
+                  <span className="material-icons-outlined">logout</span>
+                  {sidebarOpen && "Sair"}
+                </button>
               </div>
             </div>
           </>

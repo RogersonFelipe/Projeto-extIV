@@ -4,7 +4,8 @@ import axios from "axios";
 const API_BASE = "http://localhost:3000"; // ajuste se usar porta diferente
 
 export default function GerenciarRegistros() {
-  const [tab, setTab] = useState("usuarios"); // usuarios | alunos | empresas
+  // padrão: mostrar "todos"
+  const [tab, setTab] = useState("todos"); // usuarios | alunos | empresas | todos
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -15,6 +16,9 @@ export default function GerenciarRegistros() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(8);
 
+  // novo estado para controlar visibilidade da senha no modal
+  const [showPassword, setShowPassword] = useState(false);
+
   useEffect(() => {
     setPage(1);
     load();
@@ -24,8 +28,21 @@ export default function GerenciarRegistros() {
   async function load() {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/${tab}`);
-      setData(Array.isArray(res.data) ? res.data : []);
+      if (tab === "todos") {
+        // busca todas as listas e marca o tipo em cada item
+        const [uRes, aRes, eRes] = await Promise.all([
+          axios.get(`${API_BASE}/usuarios`),
+          axios.get(`${API_BASE}/alunos`),
+          axios.get(`${API_BASE}/empresas`),
+        ]);
+        const users = Array.isArray(uRes.data) ? uRes.data.map(x => ({ ...x, _type: "usuarios" })) : [];
+        const alunos = Array.isArray(aRes.data) ? aRes.data.map(x => ({ ...x, _type: "alunos" })) : [];
+        const empresas = Array.isArray(eRes.data) ? eRes.data.map(x => ({ ...x, _type: "empresas" })) : [];
+        setData([...users, ...alunos, ...empresas]);
+      } else {
+        const res = await axios.get(`${API_BASE}/${tab}`);
+        setData(Array.isArray(res.data) ? res.data.map(x => ({ ...x, _type: tab })) : []);
+      }
     } catch (err) {
       console.error(err);
       setData([]);
@@ -35,13 +52,16 @@ export default function GerenciarRegistros() {
   }
 
   function openEdit(item) {
-    setEditing({ ...item, _type: tab });
+    // preserva o _type do item (quando vindo de "todos") ou usa a aba atual
+    setEditing({ ...item, _type: item._type || tab });
+    setShowPassword(false); // resetar visibilidade ao abrir
   }
 
   function closeEdit() {
     setEditing(null);
+    setShowPassword(false); // resetar ao fechar
   }
-
+  
   function handleChange(e) {
     const { name, value } = e.target;
     setEditing((prev) => ({ ...prev, [name]: value }));
@@ -64,7 +84,7 @@ export default function GerenciarRegistros() {
       const id = editing.id;
       const payload = { ...editing };
       delete payload._type;
-      await axios.put(`${API_BASE}/${tab}/${id}`, payload);
+      await axios.put(`${API_BASE}/${editing._type || tab}/${id}`, payload);
       await load();
       closeEdit();
       alert("Registro atualizado com sucesso");
@@ -125,9 +145,10 @@ export default function GerenciarRegistros() {
 
         {/* tabs */}
         <div className="flex gap-3 mb-6">
-          <TabButton active={tab === "usuarios"} onClick={() => setTab("usuarios")} icon="person">Usuários</TabButton>
-          <TabButton active={tab === "alunos"} onClick={() => setTab("alunos")} icon="school">Alunos</TabButton>
-          <TabButton active={tab === "empresas"} onClick={() => setTab("empresas")} icon="apartment">Empresas</TabButton>
+          <TabButton active={tab === "todos"} onClick={() => setTab("todos")} icon="view_list">Todos</TabButton>
+           <TabButton active={tab === "usuarios"} onClick={() => setTab("usuarios")} icon="person">Usuários</TabButton>
+           <TabButton active={tab === "alunos"} onClick={() => setTab("alunos")} icon="school">Alunos</TabButton>
+           <TabButton active={tab === "empresas"} onClick={() => setTab("empresas")} icon="apartment">Empresas</TabButton>
 
           <div className="ml-auto flex items-center gap-3">
             <label className="text-sm text-slate-500">Por página</label>
@@ -179,7 +200,7 @@ export default function GerenciarRegistros() {
                       <button onClick={async () => {
                         if (!confirm("Excluir este registro?")) return;
                         try {
-                          await axios.delete(`${API_BASE}/${tab}/${item.id}`);
+                          await axios.delete(`${API_BASE}/${item._type || tab}/${item.id}`);
                           await load();
                         } catch (err) { console.error(err); alert("Erro ao excluir"); }
                       }} className="px-3 py-2 bg-red-500 text-white rounded-lg text-sm">Excluir</button>
@@ -232,12 +253,33 @@ export default function GerenciarRegistros() {
                 {Object.keys(editing).filter(k => k !== "id" && k !== "_type" && k !== "foto").map((key) => (
                   <div key={key}>
                     <label className="text-sm text-slate-600 capitalize block mb-1">{key.replace(/([A-Z])/g, " $1")}</label>
-                    <input
-                      name={key}
-                      value={editing[key] ?? ""}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-200"
-                    />
+
+                    {/* se for campo de senha, mostra input com type password e botão para alternar */}
+                    {key === "senha" ? (
+                      <div className="flex items-center">
+                        <input
+                          name={key}
+                          type={showPassword ? "text" : "password"}
+                          value={editing[key] ?? ""}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(s => !s)}
+                          className="ml-2 px-3 py-2 border rounded-lg text-sm text-slate-600"
+                        >
+                          {showPassword ? "Ocultar" : "Mostrar"}
+                        </button>
+                      </div>
+                    ) : (
+                      <input
+                        name={key}
+                        value={editing[key] ?? ""}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-200"
+                      />
+                    )}
                   </div>
                 ))}
               </div>
