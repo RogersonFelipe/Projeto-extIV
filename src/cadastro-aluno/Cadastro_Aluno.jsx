@@ -1,5 +1,6 @@
 import { useState } from "react";
 import * as yup from "yup";
+import axios from "axios";
 
 function maskCPF(value) {
   return value
@@ -95,8 +96,15 @@ function CadastroAluno() {
     try {
       await schema.validate(form, { abortEarly: false });
       setErrors({});
+      // enviar para json-server
+      await axios.post("http://localhost:3000/alunos", {
+        ...form,
+        foto: imgPreview || "",
+      });
       alert("Aluno cadastrado com sucesso!");
-
+      // opcional: limpar formulário
+      setForm({ nome: "", cpf: "", responsavel: "", telefone: "", nascimento: "" });
+      setImgPreview(null);
     } catch (err) {
       if (err instanceof yup.ValidationError) {
         const newErrors = {};

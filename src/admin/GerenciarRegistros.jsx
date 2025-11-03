@@ -226,7 +226,7 @@ export default function GerenciarRegistros() {
       {/* edit modal */}
       {editing && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="w-full max-w-3xl bg-white rounded-2xl shadow-lg overflow-auto">
+          <div className="w-full max-w-3xl bg-white rounded-2xl shadow-lg">
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <div>
                 <h3 className="text-lg font-semibold">Editar {editing._type}</h3>
@@ -249,7 +249,11 @@ export default function GerenciarRegistros() {
                 <input type="file" accept="image/*" onChange={handleFile} />
               </div>
 
-              <div className="col-span-1 md:col-span-1 grid grid-cols-1 gap-3">
+              {/* área de info com altura máxima e scroll apenas aqui */}
+              <div
+                className="col-span-1 md:col-span-1 grid grid-cols-1 gap-3 overflow-y-auto pr-2"
+                style={{ maxHeight: "60vh" }}
+              >
                 {Object.keys(editing).filter(k => k !== "id" && k !== "_type" && k !== "foto").map((key) => (
                   <div key={key}>
                     <label className="text-sm text-slate-600 capitalize block mb-1">{key.replace(/([A-Z])/g, " $1")}</label>

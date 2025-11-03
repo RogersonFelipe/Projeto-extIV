@@ -31,6 +31,7 @@ function Cadastro_Usuario() {
     email: "",
     senha: "",
     confirmarSenha: "",
+    isAdmin: false,
   });
 
   const [errors, setErrors] = useState({});
@@ -47,8 +48,10 @@ function Cadastro_Usuario() {
   }
 
   function handleChange(e) {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    // checkbox -> boolean
+    const newValue = type === "checkbox" ? checked : value;
+    setForm((prev) => ({ ...prev, [name]: newValue }));
     setErrors((prev) => ({ ...prev, [name]: "" }));
   }
 
@@ -88,6 +91,7 @@ function Cadastro_Usuario() {
         email: form.email.trim(),
         senha: form.senha,
         foto: imgPreview || "",
+        isAdmin: !!form.isAdmin,
       });
 
       alert("Usuário cadastrado com sucesso!");
@@ -246,6 +250,19 @@ function Cadastro_Usuario() {
                 {errors.confirmarSenha}
               </span>
             )}
+          </div>
+
+          {/* adicionar checkbox de admin */}
+          <div className="flex items-center gap-2">
+            <input
+              id="isAdmin"
+              name="isAdmin"
+              type="checkbox"
+              checked={form.isAdmin}
+              onChange={handleChange}
+              className="w-4 h-4"
+            />
+            <label htmlFor="isAdmin" className="text-sm text-slate-600">Marcar como administrador</label>
           </div>
 
           <button

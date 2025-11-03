@@ -1,5 +1,6 @@
 import { useState } from "react";
 import * as yup from "yup";
+import axios from "axios";
 
 function maskCNPJ(value) {
   return value
@@ -90,7 +91,25 @@ function CadastroEmpresa() {
     try {
       await schema.validate(form, { abortEarly: false });
       setErrors({});
+      // enviar para json-server
+      await axios.post("http://localhost:3000/empresas", {
+        ...form,
+        foto: form.foto || "",
+      });
       alert("Empresa cadastrada com sucesso!");
+      // limpar
+      setForm({
+        nomeFantasia: "",
+        cnpj: "",
+        telefone: "",
+        email: "",
+        cep: "",
+        cidade: "",
+        bairro: "",
+        rua: "",
+        numero: "",
+        complemento: "",
+      });
     } catch (err) {
       if (err instanceof yup.ValidationError) {
         const newErrors = {};

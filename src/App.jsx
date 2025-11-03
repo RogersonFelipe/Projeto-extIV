@@ -252,10 +252,13 @@ function App() {
                     </Link>
                   </div>
                 </div>
-                <Link to="/admin/gerenciar" className="flex items-center gap-2 text-white font-semibold hover:bg-blue-700 rounded px-3 py-2 transition">
-                  <span className="material-icons-outlined">admin_panel_settings</span>
-                  {sidebarOpen && "Gerenciar"}
-                </Link>
+                {/* mostrar item "Gerenciar" somente para admins */}
+                {usuario?.isAdmin && (
+                  <Link to="/admin/gerenciar" className="flex items-center gap-2 text-white font-semibold hover:bg-blue-700 rounded px-3 py-2 transition">
+                    <span className="material-icons-outlined">admin_panel_settings</span>
+                    {sidebarOpen && "Gerenciar"}
+                  </Link>
+                )}
 
                 {/* botão Sair mantido no padrão do menu */}
                 <button
@@ -376,7 +379,7 @@ function App() {
               path="/admin/gerenciar"
               element={
                 <PrivateRoute>
-                  <GerenciarRegistros />
+                  {usuario?.isAdmin ? <GerenciarRegistros /> : <Navigate to="/" replace />}
                 </PrivateRoute>
               }
             />
