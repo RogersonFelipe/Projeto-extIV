@@ -1,110 +1,897 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import * as yup from "yup";
+import api from "../api/axios";
 
-const API_BASE = "http://localhost:3000"; // ajuste se usar porta diferente
+const ENDPOINT_MAP = { alunos: "pessoas", fichas: "fichas-acompanhamento" };
+const toEndpoint = (type) => ENDPOINT_MAP[type] ?? type;
 
+const TYPE_META = {
+  usuarios: {
+    label: "Usuário",
+    badge: "bg-slate-100 text-slate-600 border border-slate-200",
+  },
+  alunos: {
+    label: "Aluno",
+    badge: "bg-gray-100 text-gray-600 border border-gray-200",
+  },
+  empresas: {
+    label: "Empresa",
+    badge: "bg-stone-100 text-stone-600 border border-stone-200",
+  },
+};
+
+function maskCPF(v) {
+  return v
+    .replace(/\D/g, "")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2")
+    .slice(0, 14);
+}
+function maskCNPJ(v) {
+  return v
+    .replace(/\D/g, "")
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2}\.\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{2}\.\d{3}\.\d{3})(\d)/, "$1/$2")
+    .replace(/^(\d{2}\.\d{3}\.\d{3}\/\d{4})(\d)/, "$1-$2")
+    .slice(0, 18);
+}
+function maskTel(v) {
+  return v
+    .replace(/\D/g, "")
+    .replace(/^(\d{2})(\d)/, "($1) $2")
+    .replace(/(\d{5})(\d{1,4})$/, "$1-$2")
+    .slice(0, 15);
+}
+function maskCEP(v) {
+  return v
+    .replace(/\D/g, "")
+    .replace(/^(\d{5})(\d)/, "$1-$2")
+    .slice(0, 9);
+}
+function maskData(v) {
+  return v
+    .replace(/\D/g, "")
+    .replace(/(\d{2})(\d)/, "$1/$2")
+    .replace(/(\d{2})(\d)/, "$1/$2")
+    .slice(0, 10);
+}
+
+const schemaAluno = yup.object({
+  nome: yup.string().required("Nome é obrigatório"),
+  cpf: yup
+    .string()
+    .matches(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "CPF inválido")
+    .required("CPF é obrigatório"),
+  responsavel: yup.string().required("Responsável é obrigatório"),
+  telefone: yup
+    .string()
+    .matches(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Telefone inválido")
+    .required("Telefone é obrigatório"),
+  nascimento: yup
+    .string()
+    .matches(
+      /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/,
+      "Data inválida dd/mm/aaaa",
+    )
+    .required("Nascimento é obrigatório"),
+});
+
+const schemaEmpresa = yup.object({
+  nomeFantasia: yup.string().required("Nome fantasia é obrigatório"),
+  cnpj: yup
+    .string()
+    .matches(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/, "CNPJ inválido")
+    .required("CNPJ é obrigatório"),
+  telefone: yup
+    .string()
+    .matches(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Telefone inválido")
+    .required("Telefone é obrigatório"),
+  email: yup.string().email("E-mail inválido").required("E-mail é obrigatório"),
+  cep: yup
+    .string()
+    .matches(/^\d{5}-\d{3}$/, "CEP inválido")
+    .required("CEP é obrigatório"),
+  cidade: yup.string().required("Cidade é obrigatória"),
+  bairro: yup.string().required("Bairro é obrigatório"),
+  rua: yup.string().required("Rua é obrigatória"),
+  numero: yup.string().required("Número é obrigatório"),
+});
+
+const schemaUsuario = yup.object({
+  nome: yup.string().trim().required("Nome é obrigatório"),
+  email: yup
+    .string()
+    .trim()
+    .email("E-mail inválido")
+    .required("E-mail é obrigatório"),
+  senha: yup.string().required("Senha é obrigatória"),
+  confirmarSenha: yup
+    .string()
+    .oneOf([yup.ref("senha")], "Senhas não coincidem")
+    .required("Confirme a senha"),
+});
+
+const BLANK_ALUNO = {
+  nome: "",
+  cpf: "",
+  responsavel: "",
+  telefone: "",
+  nascimento: "",
+  foto: "",
+};
+const BLANK_EMPRESA = {
+  nomeFantasia: "",
+  cnpj: "",
+  telefone: "",
+  email: "",
+  cep: "",
+  cidade: "",
+  bairro: "",
+  rua: "",
+  numero: "",
+  complemento: "",
+  foto: "",
+};
+const BLANK_USUARIO = {
+  nome: "",
+  email: "",
+  senha: "",
+  confirmarSenha: "",
+  isAdmin: false,
+  foto: "",
+};
+
+const BLANK_FICHA = {
+  alunoId: "",
+  alunoNome: "",
+  empresaId: "",
+  empresaNome: "",
+  admissao: "",
+  visita: "",
+  responsavelRH: "",
+  contatoCom: "",
+  parecer: "",
+  status: "em-aberto",
+};
+
+const schemaFicha = yup.object({
+  alunoNome: yup.string().required("Aluno é obrigatório"),
+  empresaNome: yup.string().required("Empresa é obrigatória"),
+  admissao: yup
+    .string()
+    .matches(/^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/, "Data inválida dd/mm/aaaa")
+    .required("Admissão é obrigatória"),
+  visita: yup
+    .string()
+    .matches(/^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/, "Data inválida dd/mm/aaaa")
+    .required("Visita é obrigatória"),
+  responsavelRH: yup.string().required("Responsável RH é obrigatório"),
+  contatoCom: yup.string().required("Contato com é obrigatório"),
+  parecer: yup.string().required("Parecer é obrigatório"),
+});
+
+const FIELD_META = {
+  nome: { label: "Nome completo", icon: "person", span: 2 },
+  nomeFantasia: { label: "Nome fantasia", icon: "storefront", span: 2 },
+  email: { label: "E-mail", icon: "email", span: 2 },
+  senha: { label: "Senha", icon: "lock", span: 1 },
+  cpf: { label: "CPF", icon: "badge", span: 1 },
+  cnpj: { label: "CNPJ", icon: "badge", span: 1 },
+  responsavel: { label: "Responsável", icon: "supervisor_account", span: 2 },
+  telefone: { label: "Telefone", icon: "phone", span: 1 },
+  nascimento: { label: "Nascimento", icon: "calendar_today", span: 1 },
+  cep: { label: "CEP", icon: "local_post_office", span: 1 },
+  cidade: { label: "Cidade", icon: "location_city", span: 1 },
+  bairro: { label: "Bairro", icon: "holiday_village", span: 1 },
+  rua: { label: "Rua / Logradouro", icon: "signpost", span: 2 },
+  numero: { label: "Número", icon: "tag", span: 1 },
+  complemento: { label: "Complemento", icon: "add_location_alt", span: 1 },
+  isAdmin: { label: "Administrador", icon: "admin_panel_settings", span: 2 },
+};
+
+/* ── Modal wrapper ── */
+function Modal({ children, onClose }) {
+  useEffect(() => {
+    function esc(e) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center overflow-y-auto py-10 px-4">
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl">
+        {children}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/* ── Cabeçalho do modal ── */
+function ModalHeader({
+  title,
+  subtitle,
+  icon,
+  onClose,
+  color = "from-slate-700 to-slate-600",
+}) {
+  return (
+    <div
+      className={`flex items-center justify-between px-6 py-5 bg-gradient-to-r ${color} rounded-t-xl`}
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+          <span className="material-icons-outlined text-white text-xl">
+            {icon}
+          </span>
+        </div>
+        <div>
+          <p className="text-xs text-white/70 font-medium uppercase tracking-wide">
+            {subtitle}
+          </p>
+          <h2 className="text-base font-bold text-white leading-tight truncate max-w-xs">
+            {title}
+          </h2>
+        </div>
+      </div>
+      <button
+        onClick={onClose}
+        className="text-white/70 hover:text-white transition"
+      >
+        <span className="material-icons-outlined text-xl">close</span>
+      </button>
+    </div>
+  );
+}
+
+/* ── Avatar upload ── */
+function AvatarUpload({ img, nome, onChange }) {
+  return (
+    <div className="flex justify-center py-4 border-b border-gray-100">
+      <label className="cursor-pointer relative group">
+        <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200 bg-gray-100 flex items-center justify-center">
+          {img ? (
+            <img src={img} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-gray-400 text-2xl font-bold">
+              {nome ? nome.charAt(0).toUpperCase() : "?"}
+            </span>
+          )}
+        </div>
+        <div className="absolute bottom-0 right-0 w-6 h-6 bg-slate-700 rounded-full flex items-center justify-center border-2 border-white shadow">
+          <span
+            className="material-icons-outlined text-white"
+            style={{ fontSize: "13px" }}
+          >
+            photo_camera
+          </span>
+        </div>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={onChange}
+          className="hidden"
+        />
+      </label>
+    </div>
+  );
+}
+
+/* ── Field input ── */
+function Field({
+  name,
+  value,
+  err,
+  onChange,
+  type = "text",
+  maxLength,
+  inputMode,
+  placeholder,
+  label,
+  icon,
+  span,
+}) {
+  const fm = FIELD_META[name] || {};
+  const resolvedLabel = label ?? fm.label ?? name;
+  const resolvedIcon = icon ?? fm.icon ?? "edit_note";
+  const resolvedSpan = span ?? fm.span ?? 1;
+  return (
+    <div className={resolvedSpan === 2 ? "col-span-2" : ""}>
+      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
+        {resolvedLabel}
+      </label>
+      <div className="relative">
+        <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base pointer-events-none">
+          {resolvedIcon}
+        </span>
+        <input
+          name={name}
+          value={value}
+          onChange={onChange}
+          type={type}
+          maxLength={maxLength}
+          inputMode={inputMode}
+          placeholder={placeholder}
+          autoComplete="off"
+          className={`w-full pl-11 pr-4 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 transition
+            ${err ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50 focus:bg-white"}`}
+        />
+      </div>
+      {err && (
+        <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+          <span className="material-icons-outlined text-xs">error</span>
+          {err}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── FieldSelect ── */
+function FieldSelect({ label, icon, value, onChange, name, err, children }) {
+  return (
+    <div>
+      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
+        {label}
+      </label>
+      <div className="relative">
+        <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base pointer-events-none">
+          {icon}
+        </span>
+        <select
+          name={name}
+          value={value}
+          onChange={onChange}
+          className={`w-full pl-11 pr-4 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 transition appearance-none bg-gray-50 focus:bg-white
+            ${err ? "border-red-400 bg-red-50" : "border-gray-200"}`}
+        >
+          {children}
+        </select>
+        <span className="material-icons-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-base pointer-events-none">
+          expand_more
+        </span>
+      </div>
+      {err && (
+        <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+          <span className="material-icons-outlined text-xs">error</span>
+          {err}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── FieldTextarea ── */
+function FieldTextarea({ label, icon, value, onChange, name, err, placeholder }) {
+  return (
+    <div className="col-span-2">
+      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
+        {label}
+      </label>
+      <div className="relative">
+        <span className="material-icons-outlined absolute left-3 top-3 text-gray-400 text-base pointer-events-none">
+          {icon}
+        </span>
+        <textarea
+          name={name}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          rows={3}
+          className={`w-full pl-11 pr-4 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 transition resize-none bg-gray-50 focus:bg-white
+            ${err ? "border-red-400 bg-red-50" : "border-gray-200"}`}
+        />
+      </div>
+      {err && (
+        <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+          <span className="material-icons-outlined text-xs">error</span>
+          {err}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── DateField ── */
+const MONTHS_PT = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
+const WEEK_PT = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+function DateField({ name, value, err, onChange, label = "Data" }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const btnRef = useRef(null);
+  const calRef = useRef(null);
+
+  function parseValue(v) {
+    if (!v || v.length !== 10) return null;
+    const [d, m, y] = v.split("/");
+    const date = new Date(+y, +m - 1, +d);
+    return isNaN(date) ? null : date;
+  }
+
+  const selected = parseValue(value);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const [view, setView] = useState(() => {
+    const s = parseValue(value);
+    return s
+      ? new Date(s.getFullYear(), s.getMonth(), 1)
+      : new Date(today.getFullYear(), today.getMonth(), 1);
+  });
+
+  function openCalendar() {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + window.scrollY + 6,
+        left: rect.left + window.scrollX,
+        width: Math.max(rect.width, 288),
+      });
+    }
+    setOpen((o) => !o);
+  }
+
+  useEffect(() => {
+    function handler(e) {
+      if (
+        btnRef.current &&
+        !btnRef.current.contains(e.target) &&
+        calRef.current &&
+        !calRef.current.contains(e.target)
+      )
+        setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  function selectDay(day) {
+    const d = String(day).padStart(2, "0");
+    const m = String(view.getMonth() + 1).padStart(2, "0");
+    const y = view.getFullYear();
+    onChange({ target: { name, value: `${d}/${m}/${y}` } });
+    setOpen(false);
+  }
+
+  const year = view.getFullYear();
+  const month = view.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const offset = (firstDay + 6) % 7;
+  const daysCount = new Date(year, month + 1, 0).getDate();
+
+  const calendar = open ? (
+    <div
+      ref={calRef}
+      style={{
+        position: "fixed",
+        top: pos.top,
+        left: pos.left,
+        width: pos.width,
+        zIndex: 9999,
+      }}
+      className="bg-white rounded-xl shadow-2xl border border-gray-200 p-4"
+    >
+      <div className="flex items-center justify-between mb-4">
+        <button
+          type="button"
+          onClick={() => setView(new Date(year, month - 1, 1))}
+          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition"
+        >
+          <span className="material-icons-outlined text-gray-500 text-base">
+            chevron_left
+          </span>
+        </button>
+        <span className="text-sm font-semibold text-gray-800">
+          {MONTHS_PT[month]} {year}
+        </span>
+        <button
+          type="button"
+          onClick={() => setView(new Date(year, month + 1, 1))}
+          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition"
+        >
+          <span className="material-icons-outlined text-gray-500 text-base">
+            chevron_right
+          </span>
+        </button>
+      </div>
+      <div className="grid grid-cols-7 mb-2">
+        {WEEK_PT.map((w) => (
+          <div
+            key={w}
+            className="text-center text-xs font-semibold text-gray-400"
+          >
+            {w}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-y-1">
+        {Array.from({ length: offset }).map((_, i) => (
+          <div key={`e${i}`} />
+        ))}
+        {Array.from({ length: daysCount }, (_, i) => i + 1).map((day) => {
+          const d = new Date(year, month, day);
+          const isSel = selected && d.getTime() === selected.getTime();
+          const isToday = d.getTime() === today.getTime();
+          return (
+            <button
+              key={day}
+              type="button"
+              onClick={() => selectDay(day)}
+              className={`w-8 h-8 mx-auto rounded-full text-xs flex items-center justify-center transition font-medium
+                ${
+                  isSel
+                    ? "bg-slate-700 text-white"
+                    : isToday
+                      ? "ring-2 ring-slate-400 text-slate-700 font-bold"
+                      : "text-gray-700 hover:bg-gray-100"
+                }`}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+      {value && (
+        <button
+          type="button"
+          onClick={() => {
+            onChange({ target: { name, value: "" } });
+            setOpen(false);
+          }}
+          className="mt-3 w-full flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-red-500 transition py-1.5 rounded-lg hover:bg-red-50"
+        >
+          <span className="material-icons-outlined text-xs">close</span>Limpar
+          data
+        </button>
+      )}
+    </div>
+  ) : null;
+
+  return (
+    <div>
+      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
+        {label}
+      </label>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={openCalendar}
+        className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm text-left transition focus:outline-none focus:ring-2 focus:ring-slate-300
+          ${err ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50 hover:bg-white"}`}
+      >
+        <span className="material-icons-outlined text-gray-400 text-base">
+          calendar_today
+        </span>
+        <span className={value ? "text-gray-800" : "text-gray-400"}>
+          {value || "Selecionar data"}
+        </span>
+      </button>
+      {open && createPortal(calendar, document.body)}
+      {err && (
+        <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+          <span className="material-icons-outlined text-xs">error</span>
+          {err}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════ */
 export default function GerenciarRegistros() {
-  // padrão: mostrar "todos"
-  const [tab, setTab] = useState("todos"); // usuarios | alunos | empresas | todos
+  const [tab, setTab] = useState("todos");
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  const [editing, setEditing] = useState(null); // { id, ...record, _type }
+  const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
-
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(8);
+  const [perPage, setPerPage] = useState(10);
+  const [showPass, setShowPass] = useState(false);
+  const [newMenu, setNewMenu] = useState(false);
+  const [createType, setCreateType] = useState(null);
+  const [createForm, setCreateForm] = useState({});
+  const [createErr, setCreateErr] = useState({});
+  const [createImg, setCreateImg] = useState(null);
+  const [creating, setCreating] = useState(false);
 
-  // novo estado para controlar visibilidade da senha no modal
-  const [showPassword, setShowPassword] = useState(false);
+  /* ── Seção principal ── */
+  const [mainSection, setMainSection] = useState("registros");
 
+  /* ── Ficha de Acompanhamento ── */
+  const [fichas, setFichas] = useState([]);
+  const [fichaLoading, setFichaLoading] = useState(false);
+  const [fichaTab, setFichaTab] = useState("todas");
+  const [fichaQuery, setFichaQuery] = useState("");
+  const [fichaPage, setFichaPage] = useState(1);
+  const [fichaPerPage, setFichaPerPage] = useState(10);
+  const [editingFicha, setEditingFicha] = useState(null);
+  const [savingFicha, setSavingFicha] = useState(false);
+  const [showCreateFicha, setShowCreateFicha] = useState(false);
+  const [fichaForm, setFichaForm] = useState({ ...BLANK_FICHA });
+  const [fichaErr, setFichaErr] = useState({});
+  const [creatingFicha, setCreatingFicha] = useState(false);
+  const [alunosOpts, setAlunosOpts] = useState([]);
+  const [empresasOpts, setEmpresasOpts] = useState([]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     setPage(1);
     load();
-    // eslint-disable-next-line
   }, [tab]);
 
   async function load() {
     setLoading(true);
     try {
       if (tab === "todos") {
-        // busca todas as listas e marca o tipo em cada item
-        const [uRes, aRes, eRes] = await Promise.all([
-          axios.get(`${API_BASE}/usuarios`),
-          axios.get(`${API_BASE}/alunos`),
-          axios.get(`${API_BASE}/empresas`),
+        const [u, a, e] = await Promise.all([
+          api.get("/usuarios"),
+          api.get("/pessoas"),
+          api.get("/empresas"),
         ]);
-        const users = Array.isArray(uRes.data) ? uRes.data.map(x => ({ ...x, _type: "usuarios" })) : [];
-        const alunos = Array.isArray(aRes.data) ? aRes.data.map(x => ({ ...x, _type: "alunos" })) : [];
-        const empresas = Array.isArray(eRes.data) ? eRes.data.map(x => ({ ...x, _type: "empresas" })) : [];
-        setData([...users, ...alunos, ...empresas]);
+        setData([
+          ...u.data.map((x) => ({ ...x, _type: "usuarios" })),
+          ...a.data.map((x) => ({ ...x, _type: "alunos" })),
+          ...e.data.map((x) => ({ ...x, _type: "empresas" })),
+        ]);
       } else {
-        const res = await axios.get(`${API_BASE}/${tab}`);
-        setData(Array.isArray(res.data) ? res.data.map(x => ({ ...x, _type: tab })) : []);
+        const res = await api.get(`/${toEndpoint(tab)}`);
+        setData(res.data.map((x) => ({ ...x, _type: tab })));
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
       setData([]);
     } finally {
       setLoading(false);
     }
   }
 
-  function openEdit(item) {
-    // preserva o _type do item (quando vindo de "todos") ou usa a aba atual
-    setEditing({ ...item, _type: item._type || tab });
-    setShowPassword(false); // resetar visibilidade ao abrir
+  function openCreate(type) {
+    const blanks = {
+      alunos: BLANK_ALUNO,
+      empresas: BLANK_EMPRESA,
+      usuarios: BLANK_USUARIO,
+    };
+    setCreateType(type);
+    setCreateForm({ ...blanks[type] });
+    setCreateErr({});
+    setCreateImg(null);
+    setNewMenu(false);
   }
 
-  function closeEdit() {
-    setEditing(null);
-    setShowPassword(false); // resetar ao fechar
-  }
-  
-  function handleChange(e) {
-    const { name, value } = e.target;
-    setEditing((prev) => ({ ...prev, [name]: value }));
+  function handleCreateChange(e) {
+    const { name, value, type, checked } = e.target;
+    let v = type === "checkbox" ? checked : value;
+    if (name === "cpf") v = maskCPF(v);
+    if (name === "cnpj") v = maskCNPJ(v);
+    if (name === "telefone") v = maskTel(v);
+    if (name === "cep") v = maskCEP(v);
+    if (name === "nascimento") v = maskData(v);
+    setCreateForm((p) => ({ ...p, [name]: v }));
+    setCreateErr((p) => ({ ...p, [name]: "" }));
   }
 
-  function handleFile(e) {
+  function handleCreateImg(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () =>
-      setEditing((prev) => ({ ...prev, foto: reader.result }));
-    reader.readAsDataURL(file);
+    const r = new FileReader();
+    r.onloadend = () => setCreateImg(r.result);
+    r.readAsDataURL(file);
+  }
+
+  async function submitCreate(e) {
+    e.preventDefault();
+    setCreating(true);
+    const schemas = {
+      alunos: schemaAluno,
+      empresas: schemaEmpresa,
+      usuarios: schemaUsuario,
+    };
+    try {
+      await schemas[createType].validate(createForm, { abortEarly: false });
+      const payload = { ...createForm, foto: createImg || "" };
+      delete payload.confirmarSenha;
+      await api.post(`/${toEndpoint(createType)}`, payload);
+      setCreateType(null);
+      if (tab === "todos" || tab === createType) await load();
+    } catch (err) {
+      if (err instanceof yup.ValidationError) {
+        const errs = {};
+        err.inner.forEach((e) => {
+          if (!errs[e.path]) errs[e.path] = e.message;
+        });
+        setCreateErr(errs);
+      } else {
+        alert("Erro ao cadastrar");
+      }
+    }
+    setCreating(false);
+  }
+
+  async function deleteItem(item) {
+    if (!confirm("Excluir este registro permanentemente?")) return;
+    try {
+      await api.delete(`/${toEndpoint(item._type)}/${item.id}`);
+      await load();
+    } catch {
+      alert("Erro ao excluir");
+    }
   }
 
   async function saveEdit(e) {
     e.preventDefault();
-    if (!editing) return;
     setSaving(true);
     try {
-      const id = editing.id;
       const payload = { ...editing };
       delete payload._type;
-      await axios.put(`${API_BASE}/${editing._type || tab}/${id}`, payload);
+      await api.put(`/${toEndpoint(editing._type)}/${editing.id}`, payload);
       await load();
-      closeEdit();
-      alert("Registro atualizado com sucesso");
-    } catch (err) {
-      console.error(err);
+      setEditing(null);
+    } catch {
       alert("Erro ao salvar");
     } finally {
       setSaving(false);
     }
   }
 
-  // filtro + paginação
+  /* ── Ficha de Acompanhamento: funções ── */
+  async function loadFichas() {
+    setFichaLoading(true);
+    try {
+      const res = await api.get("/fichas-acompanhamento");
+      setFichas(res.data);
+    } catch {
+      setFichas([]);
+    } finally {
+      setFichaLoading(false);
+    }
+  }
+
+  async function loadOptions() {
+    try {
+      const [a, e] = await Promise.all([
+        api.get("/pessoas"),
+        api.get("/empresas"),
+      ]);
+      setAlunosOpts(a.data);
+      setEmpresasOpts(e.data);
+    } catch {
+      /* ignora */
+    }
+  }
+
+  useEffect(() => {
+    if (mainSection === "fichas") {
+      loadFichas();
+      loadOptions();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainSection]);
+
+  function handleFichaChange(e) {
+    const { name, value } = e.target;
+    setFichaForm((p) => ({ ...p, [name]: value }));
+    setFichaErr((p) => ({ ...p, [name]: "" }));
+  }
+
+  function handleFichaAlunoChange(e) {
+    const opt = alunosOpts.find((a) => String(a.id) === e.target.value);
+    setFichaForm((p) => ({
+      ...p,
+      alunoId: opt ? String(opt.id) : "",
+      alunoNome: opt ? opt.nome : "",
+    }));
+    setFichaErr((p) => ({ ...p, alunoNome: "" }));
+  }
+
+  function handleFichaEmpresaChange(e) {
+    const opt = empresasOpts.find((em) => String(em.id) === e.target.value);
+    setFichaForm((p) => ({
+      ...p,
+      empresaId: opt ? String(opt.id) : "",
+      empresaNome: opt ? opt.nomeFantasia : "",
+    }));
+    setFichaErr((p) => ({ ...p, empresaNome: "" }));
+  }
+
+  async function submitCreateFicha(ev) {
+    ev.preventDefault();
+    setCreatingFicha(true);
+    try {
+      await schemaFicha.validate(fichaForm, { abortEarly: false });
+      await api.post("/fichas-acompanhamento", fichaForm);
+      setShowCreateFicha(false);
+      setFichaForm({ ...BLANK_FICHA });
+      setFichaErr({});
+      await loadFichas();
+    } catch (err) {
+      if (err instanceof yup.ValidationError) {
+        const errs = {};
+        err.inner.forEach((e) => { if (!errs[e.path]) errs[e.path] = e.message; });
+        setFichaErr(errs);
+      } else {
+        alert("Erro ao cadastrar ficha");
+      }
+    }
+    setCreatingFicha(false);
+  }
+
+  async function saveEditFicha(ev) {
+    ev.preventDefault();
+    setSavingFicha(true);
+    try {
+      await schemaFicha.validate(editingFicha, { abortEarly: false });
+      await api.put(`/fichas-acompanhamento/${editingFicha.id}`, editingFicha);
+      setEditingFicha(null);
+      await loadFichas();
+    } catch (err) {
+      if (err instanceof yup.ValidationError) {
+        alert(err.inner.map((e) => e.message).join("\n"));
+      } else {
+        alert("Erro ao salvar ficha");
+      }
+    }
+    setSavingFicha(false);
+  }
+
+  async function deleteFicha(ficha) {
+    if (!confirm("Excluir esta ficha permanentemente?")) return;
+    try {
+      await api.delete(`/fichas-acompanhamento/${ficha.id}`);
+      await loadFichas();
+    } catch {
+      alert("Erro ao excluir ficha");
+    }
+  }
+
+  /* ── Ficha: filtros e paginação ── */
+  const fichaFiltered = fichas.filter((f) => {
+    if (fichaTab === "em-aberto" && f.status !== "em-aberto") return false;
+    if (fichaTab === "finalizada" && f.status !== "finalizada") return false;
+    if (!fichaQuery) return true;
+    const q = fichaQuery.toLowerCase();
+    return (
+      (f.alunoNome || "").toLowerCase().includes(q) ||
+      (f.empresaNome || "").toLowerCase().includes(q) ||
+      (f.responsavelRH || "").toLowerCase().includes(q)
+    );
+  });
+  const fichaTotal = fichaFiltered.length;
+  const fichaPages = Math.max(1, Math.ceil(fichaTotal / fichaPerPage));
+  const fichaStart = (fichaPage - 1) * fichaPerPage;
+  const fichaPageItems = fichaFiltered.slice(fichaStart, fichaStart + fichaPerPage);
+
+  const fichaTabCounts = {
+    todas: fichas.length,
+    "em-aberto": fichas.filter((f) => f.status === "em-aberto").length,
+    finalizada: fichas.filter((f) => f.status === "finalizada").length,
+  };
+
   const filtered = data.filter((d) => {
     if (!query) return true;
     const q = query.toLowerCase();
     return (
-      (d.nome || d.nomeFantasia || "").toString().toLowerCase().includes(q) ||
-      (d.email || "").toString().toLowerCase().includes(q) ||
-      (d.cnpj || "").toString().toLowerCase().includes(q) ||
-      (d.id || "").toString().toLowerCase().includes(q)
+      (d.nome || d.nomeFantasia || "").toLowerCase().includes(q) ||
+      (d.email || "").toLowerCase().includes(q) ||
+      (d.cnpj || "").toLowerCase().includes(q)
     );
   });
 
@@ -113,204 +900,1154 @@ export default function GerenciarRegistros() {
   const start = (page - 1) * perPage;
   const pageItems = filtered.slice(start, start + perPage);
 
+  const TABS = [
+    { key: "todos", label: "Todos" },
+    { key: "usuarios", label: "Usuários" },
+    { key: "alunos", label: "Alunos" },
+    { key: "empresas", label: "Empresas" },
+  ];
+
+  const COUNTS = {
+    todos: data.length,
+    usuarios: data.filter((d) => d._type === "usuarios").length,
+    alunos: data.filter((d) => d._type === "alunos").length,
+    empresas: data.filter((d) => d._type === "empresas").length,
+  };
+
+  const TYPE_ICON = {
+    usuarios: "person_outline",
+    alunos: "school",
+    empresas: "business",
+  };
+
   return (
-    <div className="p-6">
-      <div className="max-w-[1100px] mx-auto">
-        {/* header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-400 rounded-2xl text-white p-6 mb-6 shadow-lg flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-extrabold">Gerenciar registros</h1>
-            <p className="text-sm opacity-90 mt-1">Visualize, edite e exclua empresas, alunos e usuários</p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                <svg className="w-5 h-5 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35"></path>
-                  <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M11 19a8 8 0 100-16 8 8 0 000 16z"></path>
-                </svg>
-              </div>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={`Pesquisar ${tab}`}
-                className="pl-11 pr-4 py-2 rounded-xl w-64 text-sm bg-blue/90 placeholder:text-slate-400 outline-none border border-white/20 focus:ring-4 focus:ring-white/20"
-              />
-            </div>
-
-            <button onClick={load} className="px-4 py-2 bg-white/20 rounded-xl text-white text-sm border border-white/30 hover:bg-white/25">Atualizar</button>
-          </div>
+    <div className="max-w-6xl mx-auto flex flex-col gap-4">
+      {/* Cabeçalho */}
+      <div className="flex items-center justify-between py-1">
+        <div>
+          <h1 className="text-lg font-bold text-gray-800 tracking-tight">
+            Gerenciar Registros
+          </h1>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {mainSection === "registros"
+              ? "Usuários, alunos e empresas cadastrados no sistema"
+              : "Fichas de acompanhamento dos alunos"}
+          </p>
         </div>
 
-        {/* tabs */}
-        <div className="flex gap-3 mb-6">
-          <TabButton active={tab === "todos"} onClick={() => setTab("todos")} icon="view_list">Todos</TabButton>
-           <TabButton active={tab === "usuarios"} onClick={() => setTab("usuarios")} icon="person">Usuários</TabButton>
-           <TabButton active={tab === "alunos"} onClick={() => setTab("alunos")} icon="school">Alunos</TabButton>
-           <TabButton active={tab === "empresas"} onClick={() => setTab("empresas")} icon="apartment">Empresas</TabButton>
-
-          <div className="ml-auto flex items-center gap-3">
-            <label className="text-sm text-slate-500">Por página</label>
-            <select
-              value={perPage}
-              onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}
-              className="px-3 py-2 rounded-lg border text-sm"
+        {/* Section switcher */}
+        <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-1">
+          {[
+            { key: "registros", icon: "manage_accounts", label: "Registros" },
+            { key: "fichas", icon: "assignment", label: "Fichas" },
+          ].map((s) => (
+            <button
+              key={s.key}
+              onClick={() => setMainSection(s.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition
+                ${mainSection === s.key
+                  ? "bg-white text-slate-800 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"}`}
             >
-              <option value={5}>5</option>
-              <option value={8}>8</option>
-              <option value={12}>12</option>
-            </select>
-          </div>
+              <span className="material-icons-outlined text-base">{s.icon}</span>
+              {s.label}
+            </button>
+          ))}
         </div>
-
-        {/* list as cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {loading ? (
-            <div className="col-span-full text-center py-20 text-slate-500">Carregando...</div>
-          ) : pageItems.length === 0 ? (
-            <div className="col-span-full text-center py-20 text-slate-500">Nenhum registro</div>
-          ) : (
-            pageItems.map((item) => (
-              <div key={item.id} className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition flex items-center gap-4">
-                <div className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 border-2 border-blue-50">
-                  {item.foto ? (
-                    <img src={item.foto} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-blue-50 flex items-center justify-center text-blue-400 font-bold">--</div>
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <div className="truncate">
-                      <div className="text-lg font-semibold text-slate-800 truncate">{item.nome || item.nomeFantasia || item.titulo || "-"}</div>
-                      <div className="text-xs text-slate-500 truncate">{item.email || item.cnpj || "-"}</div>
-                    </div>
-                    <div className="text-xs text-slate-400">ID {item.id}</div>
-                  </div>
-
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <div className="text-sm text-slate-600">
-                      {item.telefone ? item.telefone : <span className="text-slate-400">—</span>}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => openEdit(item)} className="px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-400 text-white rounded-lg text-sm shadow">Editar</button>
-                      <button onClick={async () => {
-                        if (!confirm("Excluir este registro?")) return;
-                        try {
-                          await axios.delete(`${API_BASE}/${item._type || tab}/${item.id}`);
-                          await load();
-                        } catch (err) { console.error(err); alert("Erro ao excluir"); }
-                      }} className="px-3 py-2 bg-red-500 text-white rounded-lg text-sm">Excluir</button>
-                    </div>
-                  </div>
-                </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={load}
+            className="flex items-center gap-2 px-3 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition"
+          >
+            <span className="material-icons-outlined text-base">refresh</span>
+            Atualizar
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => setNewMenu((v) => !v)}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg transition"
+            >
+              <span className="material-icons-outlined text-base">add</span>
+              Novo registro
+              <span className="material-icons-outlined text-base">
+                expand_more
+              </span>
+            </button>
+            {newMenu && (
+              <div className="absolute right-0 top-11 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden min-w-[180px]">
+                {[
+                  {
+                    type: "usuarios",
+                    icon: "person_outline",
+                    label: "Usuário",
+                  },
+                  { type: "alunos", icon: "school", label: "Aluno" },
+                  { type: "empresas", icon: "business", label: "Empresa" },
+                ].map((item) => (
+                  <button
+                    key={item.type}
+                    onClick={() => openCreate(item.type)}
+                    className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    <span className="material-icons-outlined text-gray-400 text-base">
+                      {item.icon}
+                    </span>
+                    {item.label}
+                  </button>
+                ))}
               </div>
-            ))
-          )}
-        </div>
-
-        {/* pagination */}
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-slate-600">Mostrando {start + 1}–{Math.min(start + perPage, total)} de {total}</div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} className="px-3 py-1 bg-white border rounded-lg">Anterior</button>
-            <div className="px-3 py-1 text-sm">{page} / {pages}</div>
-            <button onClick={() => setPage((p) => Math.min(pages, p + 1))} className="px-3 py-1 bg-white border rounded-lg">Próximo</button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* edit modal */}
-      {editing && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="w-full max-w-3xl bg-white rounded-2xl shadow-lg">
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <div>
-                <h3 className="text-lg font-semibold">Editar {editing._type}</h3>
-                <p className="text-sm text-slate-500">ID: {editing.id}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button onClick={closeEdit} className="text-slate-600 px-3 py-1 rounded hover:bg-slate-100">Fechar</button>
-              </div>
-            </div>
+      {/* ══ SEÇÃO: REGISTROS ══ */}
+      {mainSection === "registros" && (<>
 
-            <form onSubmit={saveEdit} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="col-span-1 flex flex-col items-center gap-3">
-                <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-blue-50">
-                  {editing.foto ? (
-                    <img src={editing.foto} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-blue-50 flex items-center justify-center text-blue-400">--</div>
-                  )}
-                </div>
-                <input type="file" accept="image/*" onChange={handleFile} />
-              </div>
+      {/* Abas de filtro + busca */}
+      <div className="bg-white border border-gray-200 rounded-lg flex items-center overflow-x-auto">
+        {TABS.map((t, i) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap transition border-b-2
+              ${
+                tab === t.key
+                  ? "border-slate-700 text-slate-800 bg-slate-50"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+              }
+              ${i > 0 ? "border-l border-l-gray-100" : ""}`}
+          >
+            {t.label}
+            <span
+              className={`text-xs font-bold px-1.5 py-0.5 rounded-full
+              ${tab === t.key ? "bg-slate-700 text-white" : "bg-gray-100 text-gray-500"}`}
+            >
+              {COUNTS[t.key]}
+            </span>
+          </button>
+        ))}
 
-              {/* área de info com altura máxima e scroll apenas aqui */}
-              <div
-                className="col-span-1 md:col-span-1 grid grid-cols-1 gap-3 overflow-y-auto pr-2"
-                style={{ maxHeight: "60vh" }}
-              >
-                {Object.keys(editing).filter(k => k !== "id" && k !== "_type" && k !== "foto").map((key) => (
-                  <div key={key}>
-                    <label className="text-sm text-slate-600 capitalize block mb-1">{key.replace(/([A-Z])/g, " $1")}</label>
+        {/* Busca integrada */}
+        <div className="ml-auto flex items-center gap-2 px-4 border-l border-gray-100">
+          <span className="material-icons-outlined text-gray-400 text-base">
+            search
+          </span>
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Buscar por nome, e-mail ou CNPJ..."
+            className="text-sm outline-none bg-transparent text-gray-700 placeholder:text-gray-400 w-56"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <span className="material-icons-outlined text-sm">close</span>
+            </button>
+          )}
+        </div>
 
-                    {/* se for campo de senha, mostra input com type password e botão para alternar */}
-                    {key === "senha" ? (
-                      <div className="flex items-center">
-                        <input
-                          name={key}
-                          type={showPassword ? "text" : "password"}
-                          value={editing[key] ?? ""}
-                          onChange={handleChange}
-                          className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-200"
-                        />
+        {/* Linhas por página */}
+        <div className="flex items-center gap-2 px-4 border-l border-gray-100 text-sm text-gray-500 shrink-0">
+          <span>Exibir</span>
+          <select
+            value={perPage}
+            onChange={(e) => {
+              setPerPage(Number(e.target.value));
+              setPage(1);
+            }}
+            className="border border-gray-200 rounded-md px-2 py-1 text-sm bg-gray-50 focus:outline-none"
+          >
+            {[5, 10, 20].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Tabela */}
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-2">
+            <span className="material-icons-outlined text-3xl animate-spin">
+              autorenew
+            </span>
+            <p className="text-sm">Carregando registros...</p>
+          </div>
+        ) : pageItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-2">
+            <span className="material-icons-outlined text-3xl">inbox</span>
+            <p className="text-sm">Nenhum registro encontrado</p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3">
+                  Nome
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden md:table-cell">
+                  Contato
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden md:table-cell">
+                  Telefone
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                  Tipo
+                </th>
+                <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3">
+                  Ações
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {pageItems.map((item) => {
+                const nome = item.nome || item.nomeFantasia || "—";
+                const contato = item.email || item.cnpj || "—";
+                const tmeta = TYPE_META[item._type] || {};
+                return (
+                  <tr
+                    key={`${item._type}-${item.id}`}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-gray-100 bg-gray-100 flex items-center justify-center">
+                          {item.foto ? (
+                            <img
+                              src={item.foto}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-gray-400 text-xs font-bold">
+                              {nome.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-semibold text-gray-800">
+                          {nome}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 text-gray-500 hidden md:table-cell">
+                      {contato}
+                    </td>
+                    <td className="px-4 py-3.5 text-gray-500 hidden md:table-cell">
+                      {item.telefone || "—"}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-md ${tmeta.badge}`}
+                      >
+                        {tmeta.label}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-2">
                         <button
-                          type="button"
-                          onClick={() => setShowPassword(s => !s)}
-                          className="ml-2 px-3 py-2 border rounded-lg text-sm text-slate-600"
+                          onClick={() => {
+                            setEditing({ ...item });
+                            setShowPass(false);
+                          }}
+                          className="text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-md transition"
                         >
-                          {showPassword ? "Ocultar" : "Mostrar"}
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => deleteItem(item)}
+                          className="text-xs font-medium text-red-500 hover:text-red-700 border border-red-100 hover:border-red-200 px-3 py-1.5 rounded-md transition"
+                        >
+                          Excluir
                         </button>
                       </div>
-                    ) : (
-                      <input
-                        name={key}
-                        value={editing[key] ?? ""}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-200"
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
 
-              <div className="col-span-1 md:col-span-2 flex justify-end gap-3 mt-2">
-                <button type="button" onClick={closeEdit} className="px-4 py-2 border rounded-lg">Cancelar</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-400 text-white rounded-lg">
-                  {saving ? "Salvando..." : "Salvar alterações"}
+        {/* Paginação */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/60">
+          <p className="text-xs text-gray-400">
+            {total === 0
+              ? "0 registros"
+              : `${start + 1}–${Math.min(start + perPage, total)} de ${total} registros`}
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-1.5 rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition"
+            >
+              <span className="material-icons-outlined text-sm">
+                chevron_left
+              </span>
+            </button>
+            {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className={`w-7 h-7 rounded-md text-xs font-medium transition
+                  ${p === page ? "bg-slate-700 text-white" : "border border-gray-200 bg-white text-gray-500 hover:bg-gray-100"}`}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(pages, p + 1))}
+              disabled={page === pages}
+              className="p-1.5 rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition"
+            >
+              <span className="material-icons-outlined text-sm">
+                chevron_right
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════
+          MODAL — CRIAR
+      ══════════════════════════════════════════ */}
+      {createType &&
+        (() => {
+          const meta = TYPE_META[createType] || {};
+          return (
+            <Modal onClose={() => setCreateType(null)}>
+              <ModalHeader
+                title={`Cadastrar ${meta.label}`}
+                subtitle="Novo registro"
+                icon={TYPE_ICON[createType] || "add"}
+                onClose={() => setCreateType(null)}
+                color={
+                  {
+                    usuarios: "from-blue-600 to-blue-500",
+                    alunos: "from-emerald-600 to-emerald-500",
+                    empresas: "from-violet-600 to-violet-500",
+                  }[createType]
+                }
+              />
+
+              <AvatarUpload
+                img={createImg}
+                nome={createForm.nome || createForm.nomeFantasia}
+                onChange={handleCreateImg}
+              />
+
+              <form
+                onSubmit={submitCreate}
+                className="px-6 pb-6 flex flex-col gap-4"
+              >
+                <div className="grid grid-cols-2 gap-x-4 gap-y-4 max-h-[45vh] overflow-y-auto py-2">
+                  {createType === "alunos" && (
+                    <>
+                      <Field
+                        name="nome"
+                        value={createForm.nome}
+                        err={createErr.nome}
+                        onChange={handleCreateChange}
+                      />
+                      <Field
+                        name="cpf"
+                        value={createForm.cpf}
+                        err={createErr.cpf}
+                        onChange={handleCreateChange}
+                        maxLength={14}
+                        inputMode="numeric"
+                      />
+                      <Field
+                        name="responsavel"
+                        value={createForm.responsavel}
+                        err={createErr.responsavel}
+                        onChange={handleCreateChange}
+                      />
+                      <Field
+                        name="telefone"
+                        value={createForm.telefone}
+                        err={createErr.telefone}
+                        onChange={handleCreateChange}
+                        maxLength={15}
+                        inputMode="numeric"
+                      />
+                      <DateField
+                        name="nascimento"
+                        value={createForm.nascimento}
+                        err={createErr.nascimento}
+                        onChange={handleCreateChange}
+                      />
+                    </>
+                  )}
+                  {createType === "empresas" && (
+                    <>
+                      <Field
+                        name="nomeFantasia"
+                        value={createForm.nomeFantasia}
+                        err={createErr.nomeFantasia}
+                        onChange={handleCreateChange}
+                      />
+                      <Field
+                        name="cnpj"
+                        value={createForm.cnpj}
+                        err={createErr.cnpj}
+                        onChange={handleCreateChange}
+                        maxLength={18}
+                        inputMode="numeric"
+                      />
+                      <Field
+                        name="telefone"
+                        value={createForm.telefone}
+                        err={createErr.telefone}
+                        onChange={handleCreateChange}
+                        maxLength={15}
+                        inputMode="numeric"
+                      />
+                      <Field
+                        name="email"
+                        value={createForm.email}
+                        err={createErr.email}
+                        onChange={handleCreateChange}
+                      />
+                      <Field
+                        name="cep"
+                        value={createForm.cep}
+                        err={createErr.cep}
+                        onChange={handleCreateChange}
+                        maxLength={9}
+                        inputMode="numeric"
+                      />
+                      <Field
+                        name="cidade"
+                        value={createForm.cidade}
+                        err={createErr.cidade}
+                        onChange={handleCreateChange}
+                      />
+                      <Field
+                        name="bairro"
+                        value={createForm.bairro}
+                        err={createErr.bairro}
+                        onChange={handleCreateChange}
+                      />
+                      <Field
+                        name="rua"
+                        value={createForm.rua}
+                        err={createErr.rua}
+                        onChange={handleCreateChange}
+                      />
+                      <Field
+                        name="numero"
+                        value={createForm.numero}
+                        err={createErr.numero}
+                        onChange={handleCreateChange}
+                        maxLength={5}
+                      />
+                      <Field
+                        name="complemento"
+                        value={createForm.complemento}
+                        err={null}
+                        onChange={handleCreateChange}
+                      />
+                    </>
+                  )}
+                  {createType === "usuarios" && (
+                    <>
+                      <Field
+                        name="nome"
+                        value={createForm.nome}
+                        err={createErr.nome}
+                        onChange={handleCreateChange}
+                      />
+                      <Field
+                        name="email"
+                        value={createForm.email}
+                        err={createErr.email}
+                        onChange={handleCreateChange}
+                        type="email"
+                      />
+                      <Field
+                        name="senha"
+                        value={createForm.senha}
+                        err={createErr.senha}
+                        onChange={handleCreateChange}
+                        type="password"
+                      />
+                      <Field
+                        name="confirmarSenha"
+                        value={createForm.confirmarSenha}
+                        err={createErr.confirmarSenha}
+                        onChange={handleCreateChange}
+                        type="password"
+                        label="Confirmar senha"
+                        icon="lock_reset"
+                        span={1}
+                      />
+                      <div className="col-span-2 flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                        <span className="material-icons-outlined text-gray-400 text-lg">
+                          admin_panel_settings
+                        </span>
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-gray-700">
+                            Administrador
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Acesso total ao painel de gerenciamento
+                          </p>
+                        </div>
+                        <input
+                          id="isAdminNew"
+                          name="isAdmin"
+                          type="checkbox"
+                          checked={!!createForm.isAdmin}
+                          onChange={handleCreateChange}
+                          className="w-5 h-5 accent-slate-700 cursor-pointer"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-2 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setCreateType(null)}
+                    className="flex-1 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creating}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm text-white bg-slate-700 hover:bg-slate-800 rounded-lg transition font-semibold disabled:opacity-60"
+                  >
+                    <span className="material-icons-outlined text-base">
+                      {creating ? "hourglass_top" : "check_circle"}
+                    </span>
+                    {creating ? "Cadastrando..." : `Cadastrar ${meta.label}`}
+                  </button>
+                </div>
+              </form>
+            </Modal>
+          );
+        })()}
+
+      {/* ══════════════════════════════════════════
+          MODAL — EDITAR
+      ══════════════════════════════════════════ */}
+      {editing &&
+        (() => {
+          const emeta = TYPE_META[editing._type] || {};
+          const editNome = editing.nome || editing.nomeFantasia || "?";
+          return (
+            <Modal onClose={() => setEditing(null)}>
+              <ModalHeader
+                title={editNome}
+                subtitle={`${emeta.label} · ID ${editing.id}`}
+                icon={TYPE_ICON[editing._type] || "edit"}
+                onClose={() => setEditing(null)}
+                color={
+                  {
+                    usuarios: "from-blue-600 to-blue-500",
+                    alunos: "from-emerald-600 to-emerald-500",
+                    empresas: "from-violet-600 to-violet-500",
+                  }[editing._type]
+                }
+              />
+
+              <AvatarUpload
+                img={editing.foto}
+                nome={editNome}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const r = new FileReader();
+                  r.onloadend = () =>
+                    setEditing((p) => ({ ...p, foto: r.result }));
+                  r.readAsDataURL(file);
+                }}
+              />
+
+              <form
+                onSubmit={saveEdit}
+                className="px-6 pb-6 flex flex-col gap-4"
+              >
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 max-h-[42vh] overflow-y-auto py-2 p-1">
+                  {Object.keys(editing)
+                    .filter((k) => !["id", "_type", "foto"].includes(k))
+                    .map((key) => {
+                      const fm = FIELD_META[key] || {
+                        label: key.replace(/([A-Z])/g, " $1"),
+                        icon: "edit_note",
+                        span: 1,
+                      };
+
+                      if (key === "nascimento")
+                        return (
+                          <DateField
+                            key={key}
+                            name={key}
+                            value={editing[key] ?? ""}
+                            err={null}
+                            onChange={(e) =>
+                              setEditing((p) => ({
+                                ...p,
+                                [e.target.name]: e.target.value,
+                              }))
+                            }
+                          />
+                        );
+
+                      if (key === "isAdmin")
+                        return (
+                          <div
+                            key={key}
+                            className="col-span-2 flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
+                          >
+                            <span className="material-icons-outlined text-gray-400 text-lg">
+                              admin_panel_settings
+                            </span>
+                            <div className="flex-1">
+                              <p className="text-xs font-semibold text-gray-700">
+                                Administrador
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                Acesso total ao painel de gerenciamento
+                              </p>
+                            </div>
+                            <input
+                              name={key}
+                              type="checkbox"
+                              checked={!!editing[key]}
+                              onChange={(e) =>
+                                setEditing((p) => ({
+                                  ...p,
+                                  [e.target.name]: e.target.checked,
+                                }))
+                              }
+                              className="w-5 h-5 accent-slate-700 cursor-pointer"
+                            />
+                          </div>
+                        );
+
+                      if (key === "senha")
+                        return (
+                          <div
+                            key={key}
+                            className={fm.span === 2 ? "col-span-2" : ""}
+                          >
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
+                              {fm.label}
+                            </label>
+                            <div className="relative flex gap-2">
+                              <div className="relative flex-1">
+                                <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base pointer-events-none">
+                                  lock
+                                </span>
+                                <input
+                                  name={key}
+                                  type={showPass ? "text" : "password"}
+                                  value={editing[key] ?? ""}
+                                  onChange={(e) =>
+                                    setEditing((p) => ({
+                                      ...p,
+                                      [e.target.name]: e.target.value,
+                                    }))
+                                  }
+                                  className="w-full pl-11 pr-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 transition"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setShowPass((s) => !s)}
+                                className="flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-xs text-gray-500 hover:bg-gray-50 whitespace-nowrap"
+                              >
+                                <span className="material-icons-outlined text-base">
+                                  {showPass ? "visibility_off" : "visibility"}
+                                </span>
+                                {showPass ? "Ocultar" : "Ver"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+
+                      return (
+                        <div
+                          key={key}
+                          className={fm.span === 2 ? "col-span-2" : ""}
+                        >
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
+                            {fm.label}
+                          </label>
+                          <div className="relative">
+                            <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base pointer-events-none">
+                              {fm.icon}
+                            </span>
+                            <input
+                              name={key}
+                              value={editing[key] ?? ""}
+                              onChange={(e) =>
+                                setEditing((p) => ({
+                                  ...p,
+                                  [e.target.name]: e.target.value,
+                                }))
+                              }
+                              className="w-full pl-11 pr-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 transition"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                <div className="flex gap-3 pt-2 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setEditing(null)}
+                    className="flex-1 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm text-white bg-slate-700 hover:bg-slate-800 rounded-lg transition font-semibold disabled:opacity-60"
+                  >
+                    <span className="material-icons-outlined text-base">
+                      {saving ? "hourglass_top" : "save"}
+                    </span>
+                    {saving ? "Salvando..." : "Salvar alterações"}
+                  </button>
+                </div>
+              </form>
+            </Modal>
+          );
+        })()}
+
+      </>)}
+      {/* ══ FIM SEÇÃO: REGISTROS ══ */}
+
+      {/* ══ SEÇÃO: FICHAS DE ACOMPANHAMENTO ══ */}
+      {mainSection === "fichas" && (<>
+
+        {/* Cabeçalho fichas */}
+        <div className="flex items-center justify-between">
+          <div />
+          <button
+            onClick={() => {
+              setFichaForm({ ...BLANK_FICHA });
+              setFichaErr({});
+              setShowCreateFicha(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg transition"
+          >
+            <span className="material-icons-outlined text-base">add</span>
+            Nova Ficha
+          </button>
+        </div>
+
+        {/* Abas de status + busca */}
+        <div className="bg-white border border-gray-200 rounded-lg flex items-center overflow-x-auto">
+          {[
+            { key: "todas", label: "Todas" },
+            { key: "em-aberto", label: "Em Aberto" },
+            { key: "finalizada", label: "Finalizadas" },
+          ].map((t, i) => (
+            <button
+              key={t.key}
+              onClick={() => { setFichaTab(t.key); setFichaPage(1); }}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium whitespace-nowrap transition border-b-2
+                ${fichaTab === t.key
+                  ? "border-slate-700 text-slate-800 bg-slate-50"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"}
+                ${i > 0 ? "border-l border-l-gray-100" : ""}`}
+            >
+              {t.label}
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full
+                ${fichaTab === t.key ? "bg-slate-700 text-white" : "bg-gray-100 text-gray-500"}`}>
+                {fichaTabCounts[t.key]}
+              </span>
+            </button>
+          ))}
+          <div className="ml-auto flex items-center gap-2 px-4 border-l border-gray-100">
+            <span className="material-icons-outlined text-gray-400 text-base">search</span>
+            <input
+              value={fichaQuery}
+              onChange={(e) => { setFichaQuery(e.target.value); setFichaPage(1); }}
+              placeholder="Buscar aluno, empresa ou responsável..."
+              className="text-sm outline-none bg-transparent text-gray-700 placeholder:text-gray-400 w-60"
+            />
+            {fichaQuery && (
+              <button onClick={() => setFichaQuery("")} className="text-gray-400 hover:text-gray-600">
+                <span className="material-icons-outlined text-sm">close</span>
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 px-4 border-l border-gray-100 text-sm text-gray-500 shrink-0">
+            <span>Exibir</span>
+            <select
+              value={fichaPerPage}
+              onChange={(e) => { setFichaPerPage(Number(e.target.value)); setFichaPage(1); }}
+              className="border border-gray-200 rounded-md px-2 py-1 text-sm bg-gray-50 focus:outline-none"
+            >
+              {[5, 10, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Tabela fichas */}
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          {fichaLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-2">
+              <span className="material-icons-outlined text-3xl animate-spin">autorenew</span>
+              <p className="text-sm">Carregando fichas...</p>
+            </div>
+          ) : fichaPageItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-2">
+              <span className="material-icons-outlined text-3xl">assignment</span>
+              <p className="text-sm">Nenhuma ficha encontrada</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3">Aluno</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Empresa</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Responsável RH</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Admissão</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Visita</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Status</th>
+                  <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {fichaPageItems.map((f) => (
+                  <tr key={f.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-slate-600 text-xs font-bold">
+                            {(f.alunoNome || "?").charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="font-semibold text-gray-800">{f.alunoNome || "—"}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 text-gray-500 hidden md:table-cell">{f.empresaNome || "—"}</td>
+                    <td className="px-4 py-3.5 text-gray-500 hidden md:table-cell">{f.responsavelRH || "—"}</td>
+                    <td className="px-4 py-3.5 text-gray-500 hidden lg:table-cell">{f.admissao || "—"}</td>
+                    <td className="px-4 py-3.5 text-gray-500 hidden lg:table-cell">{f.visita || "—"}</td>
+                    <td className="px-4 py-3.5">
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-md
+                        ${f.status === "finalizada"
+                          ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                          : "bg-amber-50 text-amber-600 border border-amber-200"}`}>
+                        {f.status === "finalizada" ? "Finalizada" : "Em Aberto"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setEditingFicha({ ...f })}
+                          className="text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-md transition"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => deleteFicha(f)}
+                          className="text-xs font-medium text-red-500 hover:text-red-700 border border-red-100 hover:border-red-200 px-3 py-1.5 rounded-md transition"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* Paginação fichas */}
+          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/60">
+            <p className="text-xs text-gray-400">
+              {fichaTotal === 0
+                ? "0 fichas"
+                : `${fichaStart + 1}–${Math.min(fichaStart + fichaPerPage, fichaTotal)} de ${fichaTotal} fichas`}
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setFichaPage((p) => Math.max(1, p - 1))}
+                disabled={fichaPage === 1}
+                className="p-1.5 rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition"
+              >
+                <span className="material-icons-outlined text-sm">chevron_left</span>
+              </button>
+              {Array.from({ length: fichaPages }, (_, i) => i + 1).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setFichaPage(p)}
+                  className={`w-7 h-7 rounded-md text-xs font-medium transition
+                    ${p === fichaPage ? "bg-slate-700 text-white" : "border border-gray-200 bg-white text-gray-500 hover:bg-gray-100"}`}
+                >
+                  {p}
+                </button>
+              ))}
+              <button
+                onClick={() => setFichaPage((p) => Math.min(fichaPages, p + 1))}
+                disabled={fichaPage === fichaPages}
+                className="p-1.5 rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition"
+              >
+                <span className="material-icons-outlined text-sm">chevron_right</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ══ MODAL — CRIAR FICHA ══ */}
+        {showCreateFicha && (
+          <Modal onClose={() => setShowCreateFicha(false)}>
+            <ModalHeader
+              title="Nova Ficha de Acompanhamento"
+              subtitle="Ficha de acompanhamento"
+              icon="add_task"
+              onClose={() => setShowCreateFicha(false)}
+              color="from-slate-700 to-slate-600"
+            />
+            <form onSubmit={submitCreateFicha} className="px-6 py-5 flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4 max-h-[52vh] overflow-y-auto pr-1">
+                <FieldSelect
+                  label="Aluno"
+                  icon="school"
+                  name="alunoId"
+                  value={fichaForm.alunoId}
+                  onChange={handleFichaAlunoChange}
+                  err={fichaErr.alunoNome}
+                >
+                  <option value="">Selecionar aluno...</option>
+                  {alunosOpts.map((a) => (
+                    <option key={a.id} value={a.id}>{a.nome}</option>
+                  ))}
+                </FieldSelect>
+                <FieldSelect
+                  label="Empresa"
+                  icon="business"
+                  name="empresaId"
+                  value={fichaForm.empresaId}
+                  onChange={handleFichaEmpresaChange}
+                  err={fichaErr.empresaNome}
+                >
+                  <option value="">Selecionar empresa...</option>
+                  {empresasOpts.map((e) => (
+                    <option key={e.id} value={e.id}>{e.nomeFantasia}</option>
+                  ))}
+                </FieldSelect>
+                <DateField
+                  name="admissao"
+                  value={fichaForm.admissao}
+                  err={fichaErr.admissao}
+                  label="Admissão"
+                  onChange={(e) => { setFichaForm((p) => ({ ...p, admissao: e.target.value })); setFichaErr((p) => ({ ...p, admissao: "" })); }}
+                />
+                <DateField
+                  name="visita"
+                  value={fichaForm.visita}
+                  err={fichaErr.visita}
+                  label="Data da Visita"
+                  onChange={(e) => { setFichaForm((p) => ({ ...p, visita: e.target.value })); setFichaErr((p) => ({ ...p, visita: "" })); }}
+                />
+                <Field
+                  name="responsavelRH"
+                  value={fichaForm.responsavelRH}
+                  err={fichaErr.responsavelRH}
+                  onChange={handleFichaChange}
+                  label="Responsável RH"
+                  icon="badge"
+                  span={1}
+                />
+                <Field
+                  name="contatoCom"
+                  value={fichaForm.contatoCom}
+                  err={fichaErr.contatoCom}
+                  onChange={handleFichaChange}
+                  label="Contato com"
+                  icon="contact_phone"
+                  span={1}
+                />
+                <FieldTextarea
+                  name="parecer"
+                  value={fichaForm.parecer}
+                  err={fichaErr.parecer}
+                  onChange={handleFichaChange}
+                  label="Parecer Geral"
+                  icon="rate_review"
+                  placeholder="Descreva o parecer geral da visita..."
+                />
+                <FieldSelect
+                  label="Status"
+                  icon="flag"
+                  name="status"
+                  value={fichaForm.status}
+                  onChange={handleFichaChange}
+                  err={null}
+                >
+                  <option value="em-aberto">Em Aberto</option>
+                  <option value="finalizada">Finalizada</option>
+                </FieldSelect>
+              </div>
+              <div className="flex gap-3 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateFicha(false)}
+                  className="flex-1 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingFicha}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm text-white bg-slate-700 hover:bg-slate-800 rounded-lg transition font-semibold disabled:opacity-60"
+                >
+                  <span className="material-icons-outlined text-base">
+                    {creatingFicha ? "hourglass_top" : "check_circle"}
+                  </span>
+                  {creatingFicha ? "Salvando..." : "Cadastrar Ficha"}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+          </Modal>
+        )}
 
-/* small helper tab button */
-function TabButton({ children, active, onClick, icon }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm ${active ? "bg-white text-blue-700 shadow" : "bg-white/70 text-slate-700 border"}`}
-    >
-      <span className="material-icons-outlined text-sm">{icon}</span>
-      {children}
-    </button>
+        {/* ══ MODAL — EDITAR FICHA ══ */}
+        {editingFicha && (
+          <Modal onClose={() => setEditingFicha(null)}>
+            <ModalHeader
+              title={editingFicha.alunoNome || "Ficha"}
+              subtitle="Editar ficha de acompanhamento"
+              icon="assignment"
+              onClose={() => setEditingFicha(null)}
+              color="from-emerald-600 to-emerald-500"
+            />
+            <form onSubmit={saveEditFicha} className="px-6 py-5 flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4 max-h-[52vh] overflow-y-auto pr-1">
+                <FieldSelect
+                  label="Aluno"
+                  icon="school"
+                  name="alunoId"
+                  value={editingFicha.alunoId}
+                  onChange={(e) => {
+                    const opt = alunosOpts.find((a) => String(a.id) === e.target.value);
+                    setEditingFicha((p) => ({ ...p, alunoId: opt ? String(opt.id) : "", alunoNome: opt ? opt.nome : "" }));
+                  }}
+                  err={null}
+                >
+                  <option value="">Selecionar aluno...</option>
+                  {alunosOpts.map((a) => (
+                    <option key={a.id} value={a.id}>{a.nome}</option>
+                  ))}
+                </FieldSelect>
+                <FieldSelect
+                  label="Empresa"
+                  icon="business"
+                  name="empresaId"
+                  value={editingFicha.empresaId}
+                  onChange={(e) => {
+                    const opt = empresasOpts.find((em) => String(em.id) === e.target.value);
+                    setEditingFicha((p) => ({ ...p, empresaId: opt ? String(opt.id) : "", empresaNome: opt ? opt.nomeFantasia : "" }));
+                  }}
+                  err={null}
+                >
+                  <option value="">Selecionar empresa...</option>
+                  {empresasOpts.map((e) => (
+                    <option key={e.id} value={e.id}>{e.nomeFantasia}</option>
+                  ))}
+                </FieldSelect>
+                <DateField
+                  name="admissao"
+                  value={editingFicha.admissao}
+                  err={null}
+                  label="Admissão"
+                  onChange={(e) => setEditingFicha((p) => ({ ...p, admissao: e.target.value }))}
+                />
+                <DateField
+                  name="visita"
+                  value={editingFicha.visita}
+                  err={null}
+                  label="Data da Visita"
+                  onChange={(e) => setEditingFicha((p) => ({ ...p, visita: e.target.value }))}
+                />
+                <Field
+                  name="responsavelRH"
+                  value={editingFicha.responsavelRH}
+                  err={null}
+                  onChange={(e) => setEditingFicha((p) => ({ ...p, responsavelRH: e.target.value }))}
+                  label="Responsável RH"
+                  icon="badge"
+                  span={1}
+                />
+                <Field
+                  name="contatoCom"
+                  value={editingFicha.contatoCom}
+                  err={null}
+                  onChange={(e) => setEditingFicha((p) => ({ ...p, contatoCom: e.target.value }))}
+                  label="Contato com"
+                  icon="contact_phone"
+                  span={1}
+                />
+                <FieldTextarea
+                  name="parecer"
+                  value={editingFicha.parecer}
+                  err={null}
+                  onChange={(e) => setEditingFicha((p) => ({ ...p, parecer: e.target.value }))}
+                  label="Parecer Geral"
+                  icon="rate_review"
+                  placeholder="Descreva o parecer geral da visita..."
+                />
+                <FieldSelect
+                  label="Status"
+                  icon="flag"
+                  name="status"
+                  value={editingFicha.status}
+                  onChange={(e) => setEditingFicha((p) => ({ ...p, status: e.target.value }))}
+                  err={null}
+                >
+                  <option value="em-aberto">Em Aberto</option>
+                  <option value="finalizada">Finalizada</option>
+                </FieldSelect>
+              </div>
+              <div className="flex gap-3 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingFicha(null)}
+                  className="flex-1 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingFicha}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm text-white bg-slate-700 hover:bg-slate-800 rounded-lg transition font-semibold disabled:opacity-60"
+                >
+                  <span className="material-icons-outlined text-base">
+                    {savingFicha ? "hourglass_top" : "save"}
+                  </span>
+                  {savingFicha ? "Salvando..." : "Salvar alterações"}
+                </button>
+              </div>
+            </form>
+          </Modal>
+        )}
+
+      </>)}
+      {/* ══ FIM SEÇÃO: FICHAS ══ */}
+
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import axios from "axios";
+import api from "../api/axios";
 import { useNavigate } from "react-router-dom";
 import * as yup from "yup";
 
@@ -74,24 +74,11 @@ function Cadastro_Usuario() {
 
       setLoading(true);
 
-      const existente = await axios.get(
-        `http://localhost:3000/usuarios?email=${encodeURIComponent(form.email)}`
-      );
-      if (existente.data.length > 0) {
-        setLoading(false);
-        setErrors((prev) => ({
-          ...prev,
-          email: "Este e-mail já está cadastrado",
-        }));
-        return;
-      }
-
-      await axios.post("http://localhost:3000/usuarios", {
+      await api.post("/usuarios", {
         nome: form.nome.trim(),
         email: form.email.trim(),
         senha: form.senha,
-        foto: imgPreview || "",
-        isAdmin: !!form.isAdmin,
+        nivelAcesso: form.isAdmin ? "admin" : "usuario",
       });
 
       alert("Usuário cadastrado com sucesso!");
@@ -105,8 +92,9 @@ function Cadastro_Usuario() {
           }
         });
         setErrors(newErrors);
+      } else if (err.response?.status === 409) {
+        setErrors((prev) => ({ ...prev, email: "Este e-mail já está cadastrado" }));
       } else {
-        console.error(err);
         alert("Erro ao cadastrar usuário!");
       }
     } finally {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as yup from "yup";
-import axios from "axios";
+import api from "../api/axios";
 
 function maskCPF(value) {
   return value
@@ -31,18 +31,24 @@ const schema = yup.object().shape({
   nome: yup.string().required("Nome é obrigatório"),
   cpf: yup
     .string()
-    .matches(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "CPF inválido. Use o formato 000.000.000-00")
+    .matches(
+      /^\d{3}\.\d{3}\.\d{3}-\d{2}$/,
+      "CPF inválido. Use o formato 000.000.000-00",
+    )
     .required("CPF é obrigatório"),
   responsavel: yup.string().required("Nome do responsável é obrigatório"),
   telefone: yup
     .string()
-    .matches(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Telefone inválido. Ex: (99) 99999-9999")
+    .matches(
+      /^\(\d{2}\)\s\d{5}-\d{4}$/,
+      "Telefone inválido. Ex: (99) 99999-9999",
+    )
     .required("Telefone é obrigatório"),
   nascimento: yup
     .string()
     .matches(
       /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/,
-      "Data de nascimento inválida. Use o formato dd/mm/aaaa"
+      "Data de nascimento inválida. Use o formato dd/mm/aaaa",
     )
     .required("Data de nascimento é obrigatória"),
 });
@@ -97,13 +103,22 @@ function CadastroAluno() {
       await schema.validate(form, { abortEarly: false });
       setErrors({});
       // enviar para json-server
-      await axios.post("http://localhost:3000/alunos", {
-        ...form,
-        foto: imgPreview || "",
+      await api.post("/pessoas", {
+        nome: form.nome,
+        nomeResponsavel: form.responsavel,
+        telefoneResponsavel: form.telefone,
+        dataNascimento: form.nascimento.split("/").reverse().join("-"),
+        fotoUrl: imgPreview || undefined,
       });
       alert("Aluno cadastrado com sucesso!");
       // opcional: limpar formulário
-      setForm({ nome: "", cpf: "", responsavel: "", telefone: "", nascimento: "" });
+      setForm({
+        nome: "",
+        cpf: "",
+        responsavel: "",
+        telefone: "",
+        nascimento: "",
+      });
       setImgPreview(null);
     } catch (err) {
       if (err instanceof yup.ValidationError) {
@@ -130,7 +145,11 @@ function CadastroAluno() {
             Cadastro de Aluno
           </h2>
         </div>
-        <form className="flex flex-col gap-6" onSubmit={handleSubmit} noValidate>
+        <form
+          className="flex flex-col gap-6"
+          onSubmit={handleSubmit}
+          noValidate
+        >
           <div className="flex flex-col items-center gap-3">
             <label className="relative cursor-pointer group">
               <input
@@ -173,7 +192,9 @@ function CadastroAluno() {
               autoComplete="off"
             />
             {errors.nome && (
-              <span className="text-red-500 text-xs ml-2 block mt-1">{errors.nome}</span>
+              <span className="text-red-500 text-xs ml-2 block mt-1">
+                {errors.nome}
+              </span>
             )}
           </div>
           <div className="relative">
@@ -194,7 +215,9 @@ function CadastroAluno() {
               inputMode="numeric"
             />
             {errors.cpf && (
-              <span className="text-red-500 text-xs ml-2 block mt-1">{errors.cpf}</span>
+              <span className="text-red-500 text-xs ml-2 block mt-1">
+                {errors.cpf}
+              </span>
             )}
           </div>
           <div className="relative">
@@ -213,7 +236,9 @@ function CadastroAluno() {
               autoComplete="off"
             />
             {errors.responsavel && (
-              <span className="text-red-500 text-xs ml-2 block mt-1">{errors.responsavel}</span>
+              <span className="text-red-500 text-xs ml-2 block mt-1">
+                {errors.responsavel}
+              </span>
             )}
           </div>
           <div className="relative">
@@ -234,7 +259,9 @@ function CadastroAluno() {
               inputMode="numeric"
             />
             {errors.telefone && (
-              <span className="text-red-500 text-xs ml-2 block mt-1">{errors.telefone}</span>
+              <span className="text-red-500 text-xs ml-2 block mt-1">
+                {errors.telefone}
+              </span>
             )}
           </div>
           <div className="relative">
@@ -255,7 +282,9 @@ function CadastroAluno() {
               inputMode="numeric"
             />
             {errors.nascimento && (
-              <span className="text-red-500 text-xs ml-2 block mt-1">{errors.nascimento}</span>
+              <span className="text-red-500 text-xs ml-2 block mt-1">
+                {errors.nascimento}
+              </span>
             )}
           </div>
           <button

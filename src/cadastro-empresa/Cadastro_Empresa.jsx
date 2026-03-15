@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as yup from "yup";
-import axios from "axios";
+import api from "../api/axios";
 
 function maskCNPJ(value) {
   return value
@@ -92,9 +92,12 @@ function CadastroEmpresa() {
       await schema.validate(form, { abortEarly: false });
       setErrors({});
       // enviar para json-server
-      await axios.post("http://localhost:3000/empresas", {
-        ...form,
-        foto: form.foto || "",
+      await api.post("/empresas", {
+        nome: form.nomeFantasia,
+        cnpj: form.cnpj,
+        telefone: form.telefone,
+        emailContato: form.email,
+        endereco: `${form.rua}, ${form.numero}${form.complemento ? ` - ${form.complemento}` : ""} - ${form.bairro}, ${form.cidade} - CEP ${form.cep}`,
       });
       alert("Empresa cadastrada com sucesso!");
       // limpar

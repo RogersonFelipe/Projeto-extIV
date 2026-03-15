@@ -1,71 +1,53 @@
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import axios from "axios";
+import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
+import api from '../api/axios';
 
 export const login = createAsyncThunk(
-  "auth/login",
+  'auth/login',
   async ({ email, senha }, { rejectWithValue }) => {
     try {
-      const res = await axios.get(
-        `http://localhost:3000/usuarios`,
-        { params: { email, senha } }
-      );
-      if (Array.isArray(res.data) && res.data.length > 0) {
-        return res.data[0];
-      }
-      return rejectWithValue("E-mail ou senha inválidos");
+      const res = await api.post('/auth/login', { email, senha });
+      const { access_token, usuario } = res.data;
+      localStorage.setItem('token', access_token);
+      return usuario;
     } catch (err) {
-      return rejectWithValue("Erro ao conectar ao servidor");
+      return rejectWithValue(
+        err.response?.data?.message ?? 'Credenciais inválidas'
+      );
     }
   }
 );
 
 export const updateProfileAsync = createAsyncThunk(
-  "auth/updateProfileAsync",
+  'auth/updateProfileAsync',
   async (dadosAtualizados, { getState, rejectWithValue }) => {
     try {
-      const { auth: { usuario } } = getState();
-      if (!usuario?.id) return rejectWithValue("Usuário não autenticado.");
-
-      const res = await axios.patch(
-        `http://localhost:3000/usuarios/${usuario.id}`,
-        dadosAtualizados
-      );
+      const { usuario } = getState().auth;
+      const res = await api.patch(`/usuarios/${usuario.id}`, dadosAtualizados);
       return res.data;
     } catch (err) {
-      return rejectWithValue("Erro ao atualizar o perfil no servidor.");
+      return rejectWithValue(
+        err.response?.data?.message ?? 'Erro ao atualizar perfil'
+      );
     }
   }
 );
 
-const initialUser = (() => {
-  try {
-    const u = localStorage.getItem("usuario");
-    return u ? JSON.parse(u) : null;
-  } catch {
-    return null;
-  }
-})();
-
 const authSlice = createSlice({
-  name: "auth",
+  name: 'auth',
   initialState: {
-    usuario: initialUser,
+    usuario: null,
+    token: localStorage.getItem('token') ?? null,
     loading: false,
     error: null,
-    saving: false,
-    saveError: null,
   },
   reducers: {
     logout(state) {
       state.usuario = null;
-      state.error = null;
-      localStorage.removeItem("usuario");
+      state.token = null;
+      localStorage.removeItem('token');
     },
-
-    updateProfile(state, action) {
-      if (!state.usuario) return;
-      state.usuario = { ...state.usuario, ...action.payload };
-      localStorage.setItem("usuario", JSON.stringify(state.usuario));
+    clearError(state) {
+      state.error = null;
     },
   },
   extraReducers: (builder) => {
@@ -77,30 +59,17 @@ const authSlice = createSlice({
       .addCase(login.fulfilled, (state, action) => {
         state.loading = false;
         state.usuario = action.payload;
-        state.error = null;
-        localStorage.setItem("usuario", JSON.stringify(action.payload));
+        state.token = localStorage.getItem('token');
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
-        state.usuario = null;
-        state.error = action.payload || "Falha no login";
-      })
-
-      .addCase(updateProfileAsync.pending, (state) => {
-        state.saving = true;
-        state.saveError = null;
+        state.error = action.payload;
       })
       .addCase(updateProfileAsync.fulfilled, (state, action) => {
-        state.saving = false;
         state.usuario = { ...state.usuario, ...action.payload };
-        localStorage.setItem("usuario", JSON.stringify(state.usuario));
-      })
-      .addCase(updateProfileAsync.rejected, (state, action) => {
-        state.saving = false;
-        state.saveError = action.payload || "Falha ao salvar perfil";
       });
   },
 });
 
-export const { logout, updateProfile } = authSlice.actions;
+export const { logout, clearError } = authSlice.actions;
 export default authSlice.reducer;
