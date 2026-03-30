@@ -15,10 +15,21 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+
+    if (status === 401) {
       localStorage.removeItem("token");
       window.location.href = "/login";
     }
+
+    if (status === 403) {
+      console.warn("Acesso negado (403):", error.config?.url);
+    }
+
+    if (status >= 500) {
+      console.error("Erro interno do servidor:", error.config?.url);
+    }
+
     return Promise.reject(error);
   },
 );
