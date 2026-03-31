@@ -2,29 +2,29 @@ import { useEffect, useState } from "react";
 import api from "../../api/axios";
 import { blankAval } from "../constants";
 
-const API_AVAL  = "/avaliacoes";
+const API_AVAL = "/avaliacoes";
 const API_ALUNO = "/pessoas";
 
 export function useAvaliacoes() {
-  const [lista,   setLista]   = useState([]);
-  const [alunos,  setAlunos]  = useState([]);
+  const [lista, setLista] = useState([]);
+  const [alunos, setAlunos] = useState([]);
   const [loading, setLoading] = useState(true);
 
   /* modais */
-  const [showCreate,    setShowCreate]    = useState(false);
-  const [showEdit,      setShowEdit]      = useState(false);
-  const [showView,      setShowView]      = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showView, setShowView] = useState(false);
   const [showResponder, setShowResponder] = useState(false);
 
   /* forms */
   const [createForm, setCreateForm] = useState(blankAval());
-  const [createErr,  setCreateErr]  = useState({});
-  const [editForm,   setEditForm]   = useState(null);
-  const [editErr,    setEditErr]    = useState({});
-  const [editTab,    setEditTab]    = useState("dados");
+  const [createErr, setCreateErr] = useState({});
+  const [editForm, setEditForm] = useState(null);
+  const [editErr, setEditErr] = useState({});
+  const [editTab, setEditTab] = useState("dados");
   const [viewSelected, setViewSelected] = useState(null);
-  const [viewTab,      setViewTab]      = useState("dados");
-  const [respForm,     setRespForm]     = useState(null);
+  const [viewTab, setViewTab] = useState("dados");
+  const [respForm, setRespForm] = useState(null);
 
   /* ── Fetch inicial ── */
   useEffect(() => {
@@ -43,7 +43,8 @@ export function useAvaliacoes() {
   function validateBase(form, setErr) {
     const errs = {};
     if (!form.alunoId) errs.alunoId = "Selecione um aluno";
-    if (!form.professor?.trim()) errs.professor = "Informe o professor responsável";
+    if (!form.professor?.trim())
+      errs.professor = "Informe o professor responsável";
     if (!form.dataAvaliacao) errs.dataAvaliacao = "Informe a data";
     setErr(errs);
     return Object.keys(errs).length === 0;
@@ -54,7 +55,11 @@ export function useAvaliacoes() {
     const { name, value } = e.target;
     if (name === "alunoId") {
       const aluno = alunos.find((a) => String(a.id) === String(value));
-      setCreateForm((f) => ({ ...f, alunoId: value, pessoaNome: aluno?.nome ?? "" }));
+      setCreateForm((f) => ({
+        ...f,
+        alunoId: value,
+        pessoaNome: aluno?.nome ?? "",
+      }));
     } else {
       setCreateForm((f) => ({ ...f, [name]: value }));
     }
@@ -84,9 +89,9 @@ export function useAvaliacoes() {
   function openEdit(aval) {
     setEditForm({
       ...aval,
-      alunoId:    aval.pessoa?.id  ?? aval.pessoaId ?? "",
+      alunoId: aval.pessoa?.id ?? aval.pessoaId ?? "",
       pessoaNome: aval.pessoa?.nome ?? "",
-      professor:  aval.professorResponsavel ?? "",
+      professor: aval.professorResponsavel ?? "",
     });
     setEditErr({});
     setEditTab("dados");
@@ -97,7 +102,11 @@ export function useAvaliacoes() {
     const { name, value } = e.target;
     if (name === "alunoId") {
       const aluno = alunos.find((a) => String(a.id) === String(value));
-      setEditForm((f) => ({ ...f, alunoId: value, pessoaNome: aluno?.nome ?? "" }));
+      setEditForm((f) => ({
+        ...f,
+        alunoId: value,
+        pessoaNome: aluno?.nome ?? "",
+      }));
     } else {
       setEditForm((f) => ({ ...f, [name]: value }));
     }
@@ -106,10 +115,20 @@ export function useAvaliacoes() {
 
   async function handleEditSave(e) {
     e.preventDefault();
-    if (!validateBase(editForm, setEditErr)) { setEditTab("dados"); return; }
+    if (!validateBase(editForm, setEditErr)) {
+      setEditTab("dados");
+      return;
+    }
     try {
-      const { alunoId, professor, pessoaNome: _n, pessoa: _p, professorResponsavel: _pr, ...rest } = editForm;
-      const { data } = await api.put(`${API_AVAL}/${editForm.id}`, {
+      const {
+        alunoId,
+        professor,
+        pessoaNome: _n,
+        pessoa: _p,
+        professorResponsavel: _pr,
+        ...rest
+      } = editForm;
+      const { data } = await api.patch(`${API_AVAL}/${editForm.id}`, {
         ...rest,
         pessoaId: Number(alunoId),
         professorResponsavel: professor,
@@ -126,7 +145,7 @@ export function useAvaliacoes() {
     setRespForm({
       ...aval,
       pessoaNome: aval.pessoa?.nome ?? "",
-      professor:  aval.professorResponsavel ?? "",
+      professor: aval.professorResponsavel ?? "",
     });
     setShowResponder(true);
   }
@@ -144,7 +163,7 @@ export function useAvaliacoes() {
   async function handleRespSave(e) {
     e.preventDefault();
     try {
-      const { data } = await api.put(`${API_AVAL}/${respForm.id}`, respForm);
+      const { data } = await api.patch(`${API_AVAL}/${respForm.id}`, respForm);
       setLista((l) => l.map((a) => (a.id === data.id ? data : a)));
       setShowResponder(false);
     } catch {
@@ -157,25 +176,43 @@ export function useAvaliacoes() {
     setViewSelected({
       ...aval,
       pessoaNome: aval.pessoa?.nome ?? "",
-      professor:  aval.professorResponsavel ?? "",
+      professor: aval.professorResponsavel ?? "",
     });
     setViewTab("dados");
     setShowView(true);
   }
 
   return {
-    lista, alunos, loading,
-    showCreate, setShowCreate,
-    showEdit,   setShowEdit,
-    showView,   setShowView,
-    showResponder, setShowResponder,
-    createForm, createErr,
-    editForm, editErr, editTab, setEditTab,
-    viewSelected, viewTab, setViewTab,
+    lista,
+    alunos,
+    loading,
+    showCreate,
+    setShowCreate,
+    showEdit,
+    setShowEdit,
+    showView,
+    setShowView,
+    showResponder,
+    setShowResponder,
+    createForm,
+    createErr,
+    editForm,
+    editErr,
+    editTab,
+    setEditTab,
+    viewSelected,
+    viewTab,
+    setViewTab,
     respForm,
-    handleCreateChange, handleCreate,
-    openEdit, handleEditChange, handleEditSave,
-    openResponder, handleRespOpcao, handleRespTextChange, handleRespSave,
+    handleCreateChange,
+    handleCreate,
+    openEdit,
+    handleEditChange,
+    handleEditSave,
+    openResponder,
+    handleRespOpcao,
+    handleRespTextChange,
+    handleRespSave,
     openView,
   };
 }
