@@ -54,22 +54,6 @@ export function ViewModal({ viewSelected, viewTab, setViewTab, onClose }) {
               <p className="text-sm font-semibold text-gray-800">{f.value || "—"}</p>
             </div>
           ))}
-          {viewSelected.observacoes && (
-            <div className="col-span-2 bg-gray-50 border border-gray-100 rounded-lg px-4 py-3">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
-                <span className="material-icons-outlined text-xs">notes</span> Observações
-              </p>
-              <p className="text-sm text-gray-700 whitespace-pre-line">{viewSelected.observacoes}</p>
-            </div>
-          )}
-          {viewSelected.recomendacoes && (
-            <div className="col-span-2 bg-gray-50 border border-gray-100 rounded-lg px-4 py-3">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
-                <span className="material-icons-outlined text-xs">recommend</span> Recomendações
-              </p>
-              <p className="text-sm text-gray-700 whitespace-pre-line">{viewSelected.recomendacoes}</p>
-            </div>
-          )}
         </div>
       )}
 

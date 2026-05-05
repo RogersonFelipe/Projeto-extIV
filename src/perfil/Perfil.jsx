@@ -29,11 +29,11 @@ export default function Perfil() {
       setForm({
         nome: usuario.nome || "",
         email: usuario.email || "",
-        foto: usuario.foto || "",
+        fotoUrl: usuario.fotoUrl || "",
         novaSenha: "",
         confirmarSenha: "",
       });
-      setPreview(usuario.foto || null);
+      setPreview(usuario.fotoUrl || null);
       setHasNewPhoto(false);
     }
   }, [usuario]);
@@ -76,7 +76,7 @@ export default function Perfil() {
     const payload = {
       nome: form.nome,
       email: form.email,
-      foto: hasNewPhoto ? (preview || "") : (usuario.foto || ""),
+      fotoUrl: hasNewPhoto ? (preview || "") : (usuario.fotoUrl || ""),
       ...(form.novaSenha ? { senha: form.novaSenha } : {}),
     };
 
@@ -94,11 +94,11 @@ export default function Perfil() {
     setForm({
       nome: usuario.nome || "",
       email: usuario.email || "",
-      foto: usuario.foto || "",
+      fotoUrl: usuario.fotoUrl || "",
       novaSenha: "",
       confirmarSenha: "",
     });
-    setPreview(usuario.foto || null);
+    setPreview(usuario.fotoUrl || null);
     setHasNewPhoto(false);
     setEditMode(false);
   };

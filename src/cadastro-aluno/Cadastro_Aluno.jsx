@@ -37,13 +37,19 @@ const schema = yup.object().shape({
     )
     .required("CPF é obrigatório"),
   responsavel: yup.string().required("Nome do responsável é obrigatório"),
-  telefone: yup
+  telefoneAluno: yup
+    .string()
+    .matches(
+      /^$|^\(\d{2}\)\s\d{5}-\d{4}$/,
+      "Telefone do aluno inválido. Ex: (99) 99999-9999",
+    ),
+  telefoneResponsavel: yup
     .string()
     .matches(
       /^\(\d{2}\)\s\d{5}-\d{4}$/,
-      "Telefone inválido. Ex: (99) 99999-9999",
+      "Telefone do responsável inválido. Ex: (99) 99999-9999",
     )
-    .required("Telefone é obrigatório"),
+    .required("Telefone do responsável é obrigatório"),
   nascimento: yup
     .string()
     .matches(
@@ -51,6 +57,14 @@ const schema = yup.object().shape({
       "Data de nascimento inválida. Use o formato dd/mm/aaaa",
     )
     .required("Data de nascimento é obrigatória"),
+  dataEntrada: yup
+    .string()
+    .matches(
+      /^$|^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/,
+      "Data de entrada inválida. Use o formato dd/mm/aaaa",
+    ),
+  status: yup.string().oneOf(["ativo", "inativo"]),
+  infoMedicamentos: yup.string(),
 });
 
 function CadastroAluno() {
@@ -60,27 +74,36 @@ function CadastroAluno() {
     nome: "",
     cpf: "",
     responsavel: "",
-    telefone: "",
+    telefoneAluno: "",
+    telefoneResponsavel: "",
     nascimento: "",
+    dataEntrada: "",
+    status: "ativo",
+    usaMedicamento: false,
+    infoMedicamentos: "",
   });
   const [errors, setErrors] = useState({});
 
   function handleImgChange(e) {
     const file = e.target.files[0];
     if (file) {
-      setImgPreview(URL.createObjectURL(file));
+      const reader = new FileReader();
+      reader.onloadend = () => setImgPreview(reader.result);
+      reader.readAsDataURL(file);
     } else {
       setImgPreview(null);
     }
   }
 
   function handleChange(e) {
-    const { name, value } = e.target;
-    let maskedValue = value;
+    const { name, value, type, checked } = e.target;
+    let maskedValue = type === "checkbox" ? checked : value;
 
     if (name === "cpf") maskedValue = maskCPF(value);
-    if (name === "telefone") maskedValue = maskTelefone(value);
+    if (name === "telefoneAluno") maskedValue = maskTelefone(value);
+    if (name === "telefoneResponsavel") maskedValue = maskTelefone(value);
     if (name === "nascimento") maskedValue = maskData(value);
+    if (name === "dataEntrada") maskedValue = maskData(value);
 
     setForm({ ...form, [name]: maskedValue });
     setErrors({ ...errors, [name]: "" });
@@ -105,9 +128,19 @@ function CadastroAluno() {
       // enviar para json-server
       await api.post("/pessoas", {
         nome: form.nome,
+        cpf: form.cpf,
+        status: form.status,
+        usaMedicamento: !!form.usaMedicamento,
+        infoMedicamentos: form.usaMedicamento
+          ? form.infoMedicamentos || undefined
+          : undefined,
         nomeResponsavel: form.responsavel,
-        telefoneResponsavel: form.telefone,
+        telefone: form.telefoneAluno || undefined,
+        telefoneResponsavel: form.telefoneResponsavel,
         dataNascimento: form.nascimento.split("/").reverse().join("-"),
+        dataEntrada: form.dataEntrada
+          ? form.dataEntrada.split("/").reverse().join("-")
+          : undefined,
         fotoUrl: imgPreview || undefined,
       });
       alert("Aluno cadastrado com sucesso!");
@@ -116,8 +149,13 @@ function CadastroAluno() {
         nome: "",
         cpf: "",
         responsavel: "",
-        telefone: "",
+        telefoneAluno: "",
+        telefoneResponsavel: "",
         nascimento: "",
+        dataEntrada: "",
+        status: "ativo",
+        usaMedicamento: false,
+        infoMedicamentos: "",
       });
       setImgPreview(null);
     } catch (err) {
@@ -127,6 +165,10 @@ function CadastroAluno() {
           newErrors[error.path] = error.message;
         });
         setErrors(newErrors);
+      } else if (err.response?.status === 409) {
+        setErrors((prev) => ({ ...prev, cpf: "Este CPF já está cadastrado" }));
+      } else {
+        alert("Erro ao cadastrar aluno!");
       }
     }
     setLoading(false);
@@ -186,7 +228,7 @@ function CadastroAluno() {
               value={form.nome}
               onChange={handleChange}
               onBlur={handleBlur}
-              placeholder="Nome do Aluno"
+              placeholder="Nome completo do aluno"
               className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.nome ? "border-red-400" : "border-gray-200"}`}
               required
               autoComplete="off"
@@ -230,7 +272,7 @@ function CadastroAluno() {
               value={form.responsavel}
               onChange={handleChange}
               onBlur={handleBlur}
-              placeholder="Nome Responsável"
+              placeholder="Nome completo do responsável"
               className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.responsavel ? "border-red-400" : "border-gray-200"}`}
               required
               autoComplete="off"
@@ -247,20 +289,42 @@ function CadastroAluno() {
             </span>
             <input
               type="text"
-              name="telefone"
-              value={form.telefone}
+              name="telefoneAluno"
+              value={form.telefoneAluno}
               onChange={handleChange}
               onBlur={handleBlur}
-              placeholder="Telefone Responsável"
-              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.telefone ? "border-red-400" : "border-gray-200"}`}
+              placeholder="Telefone do aluno (opcional)"
+              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.telefoneAluno ? "border-red-400" : "border-gray-200"}`}
+              maxLength={15}
+              autoComplete="off"
+              inputMode="numeric"
+            />
+            {errors.telefoneAluno && (
+              <span className="text-red-500 text-xs ml-2 block mt-1">
+                {errors.telefoneAluno}
+              </span>
+            )}
+          </div>
+          <div className="relative">
+            <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
+              call
+            </span>
+            <input
+              type="text"
+              name="telefoneResponsavel"
+              value={form.telefoneResponsavel}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              placeholder="Telefone do responsável"
+              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.telefoneResponsavel ? "border-red-400" : "border-gray-200"}`}
               maxLength={15}
               required
               autoComplete="off"
               inputMode="numeric"
             />
-            {errors.telefone && (
+            {errors.telefoneResponsavel && (
               <span className="text-red-500 text-xs ml-2 block mt-1">
-                {errors.telefone}
+                {errors.telefoneResponsavel}
               </span>
             )}
           </div>
@@ -274,7 +338,7 @@ function CadastroAluno() {
               value={form.nascimento}
               onChange={handleChange}
               onBlur={handleBlur}
-              placeholder="Data de Nascimento (dd/mm/aaaa)"
+              placeholder="Data de nascimento (dd/mm/aaaa)"
               className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.nascimento ? "border-red-400" : "border-gray-200"}`}
               maxLength={10}
               required
@@ -287,6 +351,76 @@ function CadastroAluno() {
               </span>
             )}
           </div>
+          <div className="relative">
+            <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
+              event_available
+            </span>
+            <input
+              type="text"
+              name="dataEntrada"
+              value={form.dataEntrada}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              placeholder="Data de entrada (dd/mm/aaaa)"
+              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.dataEntrada ? "border-red-400" : "border-gray-200"}`}
+              maxLength={10}
+              autoComplete="off"
+              inputMode="numeric"
+            />
+            {errors.dataEntrada && (
+              <span className="text-red-500 text-xs ml-2 block mt-1">
+                {errors.dataEntrada}
+              </span>
+            )}
+          </div>
+          <div className="relative">
+            <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
+              flag
+            </span>
+            <select
+              name="status"
+              value={form.status}
+              onChange={handleChange}
+              className="w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition border-gray-200"
+            >
+              <option value="ativo">Ativo</option>
+              <option value="inativo">Inativo</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-blue-50 px-4 py-3">
+            <input
+              id="usaMedicamento"
+              name="usaMedicamento"
+              type="checkbox"
+              checked={!!form.usaMedicamento}
+              onChange={handleChange}
+              className="w-4 h-4"
+            />
+            <label htmlFor="usaMedicamento" className="text-sm text-slate-700">
+              Usa medicação contínua?
+            </label>
+          </div>
+          {form.usaMedicamento && (
+            <div className="relative">
+              <span className="material-icons-outlined absolute left-3 top-3 text-blue-400">
+                notes
+              </span>
+              <textarea
+                name="infoMedicamentos"
+                value={form.infoMedicamentos}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                placeholder="Informações dos medicamentos"
+                rows={3}
+                className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition resize-none ${errors.infoMedicamentos ? "border-red-400" : "border-gray-200"}`}
+              />
+              {errors.infoMedicamentos && (
+                <span className="text-red-500 text-xs ml-2 block mt-1">
+                  {errors.infoMedicamentos}
+                </span>
+              )}
+            </div>
+          )}
           <button
             type="submit"
             disabled={loading}

@@ -4,7 +4,7 @@ import { fmtData } from "../../utils/date";
 export function AvaliacaoTable({ lista, filtro, tabAtiva, openEdit, openView, openResponder }) {
   const listaFiltrada = lista.filter((a) => {
     const matchTab = tabAtiva === "todas" || a.tipo === tabAtiva;
-    const nomePessoa = a.pessoa?.nome ?? "";
+    const nomePessoa = a.pessoa?.nome ?? a.pessoaNome ?? "";
     const matchBusca =
       !filtro ||
       nomePessoa.toLowerCase().includes(filtro.toLowerCase()) ||
@@ -38,11 +38,12 @@ export function AvaliacaoTable({ lista, filtro, tabAtiva, openEdit, openView, op
         {listaFiltrada.map((a) => {
           const answered   = countAnswered(a);
           const pct        = Math.round((answered / 46) * 100);
-          const finalizado = answered === 46;
-          const sm         = finalizado ? STATUS_META.finalizado : STATUS_META.em_aberto;
+          const statusKey  = a.statusAvaliacao ?? (answered === 46 ? "finalizado" : "em_aberto");
+          const sm         = STATUS_META[statusKey] ?? STATUS_META.em_aberto;
+          const bloqueadoResponder = statusKey === "finalizado" || statusKey === "cancelado";
           return (
             <tr key={a.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-5 py-3.5 font-semibold text-gray-800">{a.pessoa?.nome || "—"}</td>
+              <td className="px-5 py-3.5 font-semibold text-gray-800">{a.pessoa?.nome || a.pessoaNome || "—"}</td>
               <td className="px-4 py-3.5 text-gray-600">{a.professorResponsavel || "—"}</td>
               <td className="px-4 py-3.5 text-gray-500 hidden md:table-cell">
                 {TIPO_LABEL[a.tipo] ?? a.tipo}
@@ -77,7 +78,7 @@ export function AvaliacaoTable({ lista, filtro, tabAtiva, openEdit, openView, op
                   >
                     Editar
                   </button>
-                  {!finalizado && (
+                  {!bloqueadoResponder && (
                     <button
                       onClick={() => openResponder(a)}
                       className="text-xs font-semibold text-white bg-slate-700 hover:bg-slate-800 px-3 py-1.5 rounded-md transition"

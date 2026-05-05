@@ -12,6 +12,7 @@ const schema = yup.object().shape({
     .required("E-mail é obrigatório"),
   senha: yup
     .string()
+    .min(6, "Senha deve ter ao menos 6 caracteres")
     .required("Senha é obrigatória"),
   confirmarSenha: yup
     .string()
@@ -79,6 +80,7 @@ function Cadastro_Usuario() {
         email: form.email.trim(),
         senha: form.senha,
         nivelAcesso: form.isAdmin ? "admin" : "usuario",
+        fotoUrl: imgPreview || undefined,
       });
 
       alert("Usuário cadastrado com sucesso!");

@@ -66,10 +66,14 @@ const schemaAluno = yup.object({
     .matches(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "CPF inválido")
     .required("CPF é obrigatório"),
   responsavel: yup.string().required("Responsável é obrigatório"),
-  telefone: yup
+  telefoneAluno: yup
     .string()
-    .matches(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Telefone inválido")
-    .required("Telefone é obrigatório"),
+    .matches(/(^$)|(^\(\d{2}\)\s\d{5}-\d{4}$)/, "Telefone do aluno inválido")
+    .nullable(),
+  telefoneResponsavel: yup
+    .string()
+    .matches(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Telefone do responsável inválido")
+    .required("Telefone do responsável é obrigatório"),
   nascimento: yup
     .string()
     .matches(
@@ -77,10 +81,19 @@ const schemaAluno = yup.object({
       "Data inválida dd/mm/aaaa",
     )
     .required("Nascimento é obrigatório"),
+  dataEntrada: yup
+    .string()
+    .matches(
+      /^$|^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/,
+      "Data de entrada inválida dd/mm/aaaa",
+    ),
+  status: yup.string().oneOf(["ativo", "inativo"]),
+  infoMedicamentos: yup.string(),
 });
 
 const schemaEmpresa = yup.object({
   nomeFantasia: yup.string().required("Nome fantasia é obrigatório"),
+  razaoSocial: yup.string(),
   cnpj: yup
     .string()
     .matches(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/, "CNPJ inválido")
@@ -90,6 +103,7 @@ const schemaEmpresa = yup.object({
     .matches(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Telefone inválido")
     .required("Telefone é obrigatório"),
   email: yup.string().email("E-mail inválido").required("E-mail é obrigatório"),
+  contatoRhNome: yup.string(),
   cep: yup
     .string()
     .matches(/^\d{5}-\d{3}$/, "CEP inválido")
@@ -107,7 +121,10 @@ const schemaUsuario = yup.object({
     .trim()
     .email("E-mail inválido")
     .required("E-mail é obrigatório"),
-  senha: yup.string().required("Senha é obrigatória"),
+  senha: yup
+    .string()
+    .min(6, "Senha deve ter ao menos 6 caracteres")
+    .required("Senha é obrigatória"),
   confirmarSenha: yup
     .string()
     .oneOf([yup.ref("senha")], "Senhas não coincidem")
@@ -118,15 +135,22 @@ const BLANK_ALUNO = {
   nome: "",
   cpf: "",
   responsavel: "",
-  telefone: "",
+  telefoneAluno: "",
+  telefoneResponsavel: "",
   nascimento: "",
+  dataEntrada: "",
+  status: "ativo",
+  usaMedicamento: false,
+  infoMedicamentos: "",
   foto: "",
 };
 const BLANK_EMPRESA = {
   nomeFantasia: "",
+  razaoSocial: "",
   cnpj: "",
   telefone: "",
   email: "",
+  contatoRhNome: "",
   cep: "",
   cidade: "",
   bairro: "",
@@ -173,14 +197,215 @@ const schemaFicha = yup.object({
   parecer: yup.string().required("Parecer é obrigatório"),
 });
 
+function toIsoDate(value) {
+  if (!value) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return undefined;
+  const [day, month, year] = value.split("/");
+  return `${year}-${month}-${day}`;
+}
+
+function toBrDate(value) {
+  if (!value) return "";
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+function montarEnderecoEmpresa(form) {
+  if (form.endereco?.trim()) return form.endereco.trim();
+  const ruaNumero = [form.rua, form.numero].filter(Boolean).join(", ");
+  const complemento = form.complemento ? ` - ${form.complemento}` : "";
+  const bairroCidade = [form.bairro, form.cidade].filter(Boolean).join(", ");
+  const cep = form.cep ? ` - CEP ${form.cep}` : "";
+  return `${ruaNumero}${complemento}${bairroCidade ? ` - ${bairroCidade}` : ""}${cep}`.trim();
+}
+
+function parseEnderecoEmpresa(endereco) {
+  if (!endereco) {
+    return {
+      rua: "",
+      numero: "",
+      complemento: "",
+      bairro: "",
+      cidade: "",
+      cep: "",
+    };
+  }
+
+  const cepMatch = endereco.match(/CEP\s*(\d{5}-\d{3})/i);
+  const cep = cepMatch?.[1] || "";
+  const semCep = endereco.replace(/\s*-?\s*CEP\s*\d{5}-\d{3}/i, "").trim();
+
+  const partes = semCep.split(" - ").map((p) => p.trim());
+  const ruaNumero = partes[0] || "";
+  const segundaParte = partes[1] || "";
+  const terceiraParte = partes[2] || "";
+
+  let rua = "";
+  let numero = "";
+  if (ruaNumero.includes(",")) {
+    const [r, n] = ruaNumero.split(",");
+    rua = (r || "").trim();
+    numero = (n || "").trim();
+  } else {
+    rua = ruaNumero;
+  }
+
+  let complemento = "";
+  let bairroCidade = "";
+  if (terceiraParte) {
+    complemento = segundaParte;
+    bairroCidade = terceiraParte;
+  } else {
+    bairroCidade = segundaParte;
+  }
+
+  let bairro = "";
+  let cidade = "";
+  if (bairroCidade.includes(",")) {
+    const [b, c] = bairroCidade.split(",");
+    bairro = (b || "").trim();
+    cidade = (c || "").trim();
+  }
+
+  return { rua, numero, complemento, bairro, cidade, cep };
+}
+
+function mapRegistroPayload(type, form, img) {
+  if (type === "alunos") {
+    return {
+      nome: form.nome?.trim(),
+      cpf: form.cpf || undefined,
+      status: form.status || undefined,
+      usaMedicamento: !!form.usaMedicamento,
+      infoMedicamentos: form.usaMedicamento
+        ? form.infoMedicamentos?.trim() || undefined
+        : undefined,
+      nomeResponsavel: form.responsavel?.trim() || undefined,
+      telefone: form.telefoneAluno || undefined,
+      telefoneResponsavel: form.telefoneResponsavel || undefined,
+      dataNascimento: toIsoDate(form.nascimento),
+      dataEntrada: toIsoDate(form.dataEntrada),
+      fotoUrl: img || form.foto || form.fotoUrl || undefined,
+    };
+  }
+
+  if (type === "empresas") {
+    return {
+      nomeFantasia: form.nomeFantasia?.trim(),
+      razaoSocial: form.razaoSocial?.trim() || undefined,
+      cnpj: form.cnpj || undefined,
+      telefone: form.telefone || undefined,
+      contatoRhNome: form.contatoRhNome?.trim() || undefined,
+      contatoRhEmail: form.email?.trim() || form.contatoRhEmail || undefined,
+      endereco: montarEnderecoEmpresa(form) || undefined,
+    };
+  }
+
+  return {
+    nome: form.nome?.trim(),
+    email: form.email?.trim(),
+    senha: form.senha || undefined,
+    nivelAcesso: form.isAdmin ? "admin" : "usuario",
+    fotoUrl: img || form.foto || form.fotoUrl || undefined,
+  };
+}
+
+function normalizeRegistro(type, item) {
+  if (type === "usuarios") {
+    return {
+      id: item.id,
+      nome: item.nome || "",
+      email: item.email || "",
+      senha: "",
+      _type: "usuarios",
+      isAdmin: item.nivelAcesso === "admin",
+      foto: item.fotoUrl || "",
+    };
+  }
+
+  if (type === "alunos") {
+    return {
+      id: item.id,
+      nome: item.nome || "",
+      cpf: item.cpf || "",
+      status: item.status || "ativo",
+      usaMedicamento: !!item.usaMedicamento,
+      infoMedicamentos: item.infoMedicamentos || "",
+      _type: "alunos",
+      responsavel: item.nomeResponsavel || "",
+      telefoneAluno: item.telefone || "",
+      telefoneResponsavel: item.telefoneResponsavel || "",
+      nascimento: toBrDate(item.dataNascimento),
+      dataEntrada: toBrDate(item.dataEntrada),
+      foto: item.fotoUrl || "",
+    };
+  }
+
+  const enderecoPartes = parseEnderecoEmpresa(item.endereco);
+
+  return {
+    id: item.id,
+    nomeFantasia: item.nomeFantasia || "",
+    razaoSocial: item.razaoSocial || "",
+    cnpj: item.cnpj || "",
+    telefone: item.telefone || "",
+    contatoRhNome: item.contatoRhNome || "",
+    endereco: item.endereco || "",
+    ...enderecoPartes,
+    _type: "empresas",
+    email: item.contatoRhEmail || item.email || "",
+    foto: item.fotoUrl || "",
+  };
+}
+
+function mapFichaPayload(form) {
+  return {
+    pessoaId: Number(form.alunoId),
+    empresaId: form.empresaId ? Number(form.empresaId) : undefined,
+    dataAdmissao: toIsoDate(form.admissao),
+    dataVisita: toIsoDate(form.visita),
+    contatoRh: form.responsavelRH?.trim() || undefined,
+    contatoCom: form.contatoCom?.trim() || undefined,
+    status: form.status || undefined,
+    parecerGeral: form.parecer?.trim() || undefined,
+  };
+}
+
+function normalizeFicha(item) {
+  return {
+    ...item,
+    alunoId: item.pessoa?.id ? String(item.pessoa.id) : "",
+    alunoNome: item.pessoa?.nome || "",
+    empresaId: item.empresa?.id ? String(item.empresa.id) : "",
+    empresaNome: item.empresa?.nomeFantasia || "",
+    admissao: toBrDate(item.dataAdmissao),
+    visita: toBrDate(item.dataVisita),
+    responsavelRH: item.contatoRh || "",
+    contatoCom: item.contatoCom || "",
+    parecer: item.parecerGeral || "",
+    status: item.status || "em-aberto",
+  };
+}
+
 const FIELD_META = {
   nome: { label: "Nome completo", icon: "person", span: 2 },
   nomeFantasia: { label: "Nome fantasia", icon: "storefront", span: 2 },
+  razaoSocial: { label: "Razão social", icon: "domain", span: 2 },
   email: { label: "E-mail", icon: "email", span: 2 },
   senha: { label: "Senha", icon: "lock", span: 1 },
   cpf: { label: "CPF", icon: "badge", span: 1 },
   cnpj: { label: "CNPJ", icon: "badge", span: 1 },
-  responsavel: { label: "Responsável", icon: "supervisor_account", span: 2 },
+  responsavel: { label: "Nome do responsável", icon: "supervisor_account", span: 2 },
+  telefoneAluno: { label: "Telefone do aluno", icon: "phone", span: 1 },
+  telefoneResponsavel: { label: "Telefone do responsável", icon: "phone", span: 1 },
+  contatoRhNome: { label: "Contato RH (nome)", icon: "badge", span: 2 },
+  dataEntrada: { label: "Data de entrada", icon: "event_available", span: 1 },
+  status: { label: "Status", icon: "flag", span: 1 },
+  usaMedicamento: { label: "Usa medicação", icon: "medication", span: 2 },
+  infoMedicamentos: { label: "Informações de medicação", icon: "notes", span: 2 },
   telefone: { label: "Telefone", icon: "phone", span: 1 },
   nascimento: { label: "Nascimento", icon: "calendar_today", span: 1 },
   cep: { label: "CEP", icon: "local_post_office", span: 1 },
@@ -600,6 +825,12 @@ function DateField({ name, value, err, onChange, label = "Data" }) {
 export default function GerenciarRegistros() {
   const [tab, setTab] = useState("todos");
   const [data, setData] = useState([]);
+  const [counts, setCounts] = useState({
+    todos: 0,
+    usuarios: 0,
+    alunos: 0,
+    empresas: 0,
+  });
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -642,23 +873,37 @@ export default function GerenciarRegistros() {
   async function load() {
     setLoading(true);
     try {
+      const [u, a, e] = await Promise.all([
+        api.get("/usuarios"),
+        api.get("/pessoas"),
+        api.get("/empresas"),
+      ]);
+
+      const usuarios = u.data.map((x) => normalizeRegistro("usuarios", x));
+      const alunos = a.data.map((x) => normalizeRegistro("alunos", x));
+      const empresas = e.data.map((x) => normalizeRegistro("empresas", x));
+
+      setCounts({
+        usuarios: usuarios.length,
+        alunos: alunos.length,
+        empresas: empresas.length,
+        todos: usuarios.length + alunos.length + empresas.length,
+      });
+
       if (tab === "todos") {
-        const [u, a, e] = await Promise.all([
-          api.get("/usuarios"),
-          api.get("/pessoas"),
-          api.get("/empresas"),
-        ]);
-        setData([
-          ...u.data.map((x) => ({ ...x, _type: "usuarios" })),
-          ...a.data.map((x) => ({ ...x, _type: "alunos" })),
-          ...e.data.map((x) => ({ ...x, _type: "empresas" })),
-        ]);
+        setData([...usuarios, ...alunos, ...empresas]);
+      } else if (tab === "usuarios") {
+        setData(usuarios);
+      } else if (tab === "alunos") {
+        setData(alunos);
+      } else if (tab === "empresas") {
+        setData(empresas);
       } else {
-        const res = await api.get(`/${toEndpoint(tab)}`);
-        setData(res.data.map((x) => ({ ...x, _type: tab })));
+        setData([]);
       }
     } catch {
       setData([]);
+      setCounts({ todos: 0, usuarios: 0, alunos: 0, empresas: 0 });
     } finally {
       setLoading(false);
     }
@@ -683,10 +928,31 @@ export default function GerenciarRegistros() {
     if (name === "cpf") v = maskCPF(v);
     if (name === "cnpj") v = maskCNPJ(v);
     if (name === "telefone") v = maskTel(v);
+    if (name === "telefoneAluno") v = maskTel(v);
+    if (name === "telefoneResponsavel") v = maskTel(v);
     if (name === "cep") v = maskCEP(v);
     if (name === "nascimento") v = maskData(v);
+    if (name === "dataEntrada") v = maskData(v);
     setCreateForm((p) => ({ ...p, [name]: v }));
     setCreateErr((p) => ({ ...p, [name]: "" }));
+  }
+
+  function handleEditChange(e) {
+    const { name, value, type, checked } = e.target;
+    let v = type === "checkbox" ? checked : value;
+    if (name === "cpf") v = maskCPF(v);
+    if (name === "cnpj") v = maskCNPJ(v);
+    if (name === "telefone") v = maskTel(v);
+    if (name === "telefoneAluno") v = maskTel(v);
+    if (name === "telefoneResponsavel") v = maskTel(v);
+    if (name === "cep") v = maskCEP(v);
+    if (name === "nascimento") v = maskData(v);
+    if (name === "dataEntrada") v = maskData(v);
+    setEditing((p) => ({
+      ...p,
+      [name]: v,
+      ...(name === "usaMedicamento" && !v ? { infoMedicamentos: "" } : {}),
+    }));
   }
 
   function handleCreateImg(e) {
@@ -707,8 +973,7 @@ export default function GerenciarRegistros() {
     };
     try {
       await schemas[createType].validate(createForm, { abortEarly: false });
-      const payload = { ...createForm, foto: createImg || "" };
-      delete payload.confirmarSenha;
+      const payload = mapRegistroPayload(createType, createForm, createImg);
       await api.post(`/${toEndpoint(createType)}`, payload);
       setCreateType(null);
       if (tab === "todos" || tab === createType) await load();
@@ -740,9 +1005,8 @@ export default function GerenciarRegistros() {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...editing };
-      delete payload._type;
-      await api.put(`/${toEndpoint(editing._type)}/${editing.id}`, payload);
+      const payload = mapRegistroPayload(editing._type, editing, null);
+      await api.patch(`/${toEndpoint(editing._type)}/${editing.id}`, payload);
       await load();
       setEditing(null);
     } catch {
@@ -757,7 +1021,7 @@ export default function GerenciarRegistros() {
     setFichaLoading(true);
     try {
       const res = await api.get("/fichas-acompanhamento");
-      setFichas(res.data);
+      setFichas(res.data.map(normalizeFicha));
     } catch {
       setFichas([]);
     } finally {
@@ -817,7 +1081,7 @@ export default function GerenciarRegistros() {
     setCreatingFicha(true);
     try {
       await schemaFicha.validate(fichaForm, { abortEarly: false });
-      await api.post("/fichas-acompanhamento", fichaForm);
+      await api.post("/fichas-acompanhamento", mapFichaPayload(fichaForm));
       setShowCreateFicha(false);
       setFichaForm({ ...BLANK_FICHA });
       setFichaErr({});
@@ -839,7 +1103,10 @@ export default function GerenciarRegistros() {
     setSavingFicha(true);
     try {
       await schemaFicha.validate(editingFicha, { abortEarly: false });
-      await api.put(`/fichas-acompanhamento/${editingFicha.id}`, editingFicha);
+      await api.patch(
+        `/fichas-acompanhamento/${editingFicha.id}`,
+        mapFichaPayload(editingFicha),
+      );
       setEditingFicha(null);
       await loadFichas();
     } catch (err) {
@@ -891,7 +1158,8 @@ export default function GerenciarRegistros() {
     return (
       (d.nome || d.nomeFantasia || "").toLowerCase().includes(q) ||
       (d.email || "").toLowerCase().includes(q) ||
-      (d.cnpj || "").toLowerCase().includes(q)
+      (d.cnpj || "").toLowerCase().includes(q) ||
+      (d.cpf || "").toLowerCase().includes(q)
     );
   });
 
@@ -907,12 +1175,7 @@ export default function GerenciarRegistros() {
     { key: "empresas", label: "Empresas" },
   ];
 
-  const COUNTS = {
-    todos: data.length,
-    usuarios: data.filter((d) => d._type === "usuarios").length,
-    alunos: data.filter((d) => d._type === "alunos").length,
-    empresas: data.filter((d) => d._type === "empresas").length,
-  };
+  const COUNTS = counts;
 
   const TYPE_ICON = {
     usuarios: "person_outline",
@@ -956,48 +1219,51 @@ export default function GerenciarRegistros() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={load}
+            onClick={mainSection === "registros" ? load : loadFichas}
             className="flex items-center gap-2 px-3 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition"
           >
             <span className="material-icons-outlined text-base">refresh</span>
             Atualizar
           </button>
-          <div className="relative">
-            <button
-              onClick={() => setNewMenu((v) => !v)}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg transition"
-            >
-              <span className="material-icons-outlined text-base">add</span>
-              Novo registro
-              <span className="material-icons-outlined text-base">
-                expand_more
-              </span>
-            </button>
-            {newMenu && (
-              <div className="absolute right-0 top-11 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden min-w-[180px]">
-                {[
-                  {
-                    type: "usuarios",
-                    icon: "person_outline",
-                    label: "Usuário",
-                  },
-                  { type: "alunos", icon: "school", label: "Aluno" },
-                  { type: "empresas", icon: "business", label: "Empresa" },
-                ].map((item) => (
-                  <button
-                    key={item.type}
-                    onClick={() => openCreate(item.type)}
-                    className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    <span className="material-icons-outlined text-gray-400 text-base">
-                      {item.icon}
-                    </span>
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+
+          {mainSection === "registros" && (
+            <div className="relative">
+              <button
+                onClick={() => setNewMenu((v) => !v)}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg transition"
+              >
+                <span className="material-icons-outlined text-base">add</span>
+                Novo registro
+                <span className="material-icons-outlined text-base">
+                  expand_more
+                </span>
+              </button>
+              {newMenu && (
+                <div className="absolute right-0 top-11 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden min-w-[180px]">
+                  {[
+                    {
+                      type: "usuarios",
+                      icon: "person_outline",
+                      label: "Usuário",
+                    },
+                    { type: "alunos", icon: "school", label: "Aluno" },
+                    { type: "empresas", icon: "business", label: "Empresa" },
+                  ].map((item) => (
+                    <button
+                      key={item.type}
+                      onClick={() => openCreate(item.type)}
+                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
+                    >
+                      <span className="material-icons-outlined text-gray-400 text-base">
+                        {item.icon}
+                      </span>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1040,7 +1306,7 @@ export default function GerenciarRegistros() {
               setQuery(e.target.value);
               setPage(1);
             }}
-            placeholder="Buscar por nome, e-mail ou CNPJ..."
+            placeholder="Buscar por nome, e-mail, CPF ou CNPJ..."
             className="text-sm outline-none bg-transparent text-gray-700 placeholder:text-gray-400 w-56"
           />
           {query && (
@@ -1111,7 +1377,10 @@ export default function GerenciarRegistros() {
             <tbody className="divide-y divide-gray-50">
               {pageItems.map((item) => {
                 const nome = item.nome || item.nomeFantasia || "—";
-                const contato = item.email || item.cnpj || "—";
+                const contato =
+                  item._type === "alunos"
+                    ? item.nome || "—"
+                    : item.email || item.cnpj || item.cpf || "—";
                 const tmeta = TYPE_META[item._type] || {};
                 return (
                   <tr
@@ -1142,7 +1411,9 @@ export default function GerenciarRegistros() {
                       {contato}
                     </td>
                     <td className="px-4 py-3.5 text-gray-500 hidden md:table-cell">
-                      {item.telefone || "—"}
+                      {item._type === "alunos"
+                        ? item.telefoneResponsavel || item.telefoneAluno || "—"
+                        : item.telefone || "—"}
                     </td>
                     <td className="px-4 py-3.5">
                       <span
@@ -1271,14 +1542,25 @@ export default function GerenciarRegistros() {
                         value={createForm.responsavel}
                         err={createErr.responsavel}
                         onChange={handleCreateChange}
+                        label="Nome do responsável"
                       />
                       <Field
-                        name="telefone"
-                        value={createForm.telefone}
-                        err={createErr.telefone}
+                        name="telefoneAluno"
+                        value={createForm.telefoneAluno}
+                        err={createErr.telefoneAluno}
                         onChange={handleCreateChange}
                         maxLength={15}
                         inputMode="numeric"
+                        label="Telefone do aluno (opcional)"
+                      />
+                      <Field
+                        name="telefoneResponsavel"
+                        value={createForm.telefoneResponsavel}
+                        err={createErr.telefoneResponsavel}
+                        onChange={handleCreateChange}
+                        maxLength={15}
+                        inputMode="numeric"
+                        label="Telefone do responsável"
                       />
                       <DateField
                         name="nascimento"
@@ -1286,6 +1568,56 @@ export default function GerenciarRegistros() {
                         err={createErr.nascimento}
                         onChange={handleCreateChange}
                       />
+                      <DateField
+                        name="dataEntrada"
+                        value={createForm.dataEntrada}
+                        err={createErr.dataEntrada}
+                        onChange={handleCreateChange}
+                        label="Data de entrada"
+                      />
+                      <FieldSelect
+                        label="Status"
+                        icon="flag"
+                        name="status"
+                        value={createForm.status}
+                        onChange={handleCreateChange}
+                        err={createErr.status}
+                      >
+                        <option value="ativo">Ativo</option>
+                        <option value="inativo">Inativo</option>
+                      </FieldSelect>
+                      <div className="col-span-2 flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                        <span className="material-icons-outlined text-gray-400 text-lg">
+                          medication
+                        </span>
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-gray-700">
+                            Usa medicação
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Marque se o aluno usa medicamento continuamente
+                          </p>
+                        </div>
+                        <input
+                          id="usaMedicamentoNew"
+                          name="usaMedicamento"
+                          type="checkbox"
+                          checked={!!createForm.usaMedicamento}
+                          onChange={handleCreateChange}
+                          className="w-5 h-5 accent-slate-700 cursor-pointer"
+                        />
+                      </div>
+                      {createForm.usaMedicamento && (
+                        <Field
+                          name="infoMedicamentos"
+                          value={createForm.infoMedicamentos}
+                          err={createErr.infoMedicamentos}
+                          onChange={handleCreateChange}
+                          label="Informações de medicação"
+                          icon="notes"
+                          span={2}
+                        />
+                      )}
                     </>
                   )}
                   {createType === "empresas" && (
@@ -1294,6 +1626,12 @@ export default function GerenciarRegistros() {
                         name="nomeFantasia"
                         value={createForm.nomeFantasia}
                         err={createErr.nomeFantasia}
+                        onChange={handleCreateChange}
+                      />
+                      <Field
+                        name="razaoSocial"
+                        value={createForm.razaoSocial}
+                        err={createErr.razaoSocial}
                         onChange={handleCreateChange}
                       />
                       <Field
@@ -1311,6 +1649,12 @@ export default function GerenciarRegistros() {
                         onChange={handleCreateChange}
                         maxLength={15}
                         inputMode="numeric"
+                      />
+                      <Field
+                        name="contatoRhNome"
+                        value={createForm.contatoRhNome}
+                        err={createErr.contatoRhNome}
+                        onChange={handleCreateChange}
                       />
                       <Field
                         name="email"
@@ -1497,13 +1841,60 @@ export default function GerenciarRegistros() {
                             name={key}
                             value={editing[key] ?? ""}
                             err={null}
-                            onChange={(e) =>
-                              setEditing((p) => ({
-                                ...p,
-                                [e.target.name]: e.target.value,
-                              }))
-                            }
+                            onChange={handleEditChange}
                           />
+                        );
+
+                      if (key === "dataEntrada")
+                        return (
+                          <DateField
+                            key={key}
+                            name={key}
+                            value={editing[key] ?? ""}
+                            err={null}
+                            label="Data de entrada"
+                            onChange={handleEditChange}
+                          />
+                        );
+
+                      if (key === "status" && editing._type === "alunos")
+                        return (
+                          <FieldSelect
+                            key={key}
+                            label="Status"
+                            icon="flag"
+                            name={key}
+                            value={editing[key] ?? "ativo"}
+                            onChange={handleEditChange}
+                            err={null}
+                          >
+                            <option value="ativo">Ativo</option>
+                            <option value="inativo">Inativo</option>
+                          </FieldSelect>
+                        );
+
+                      if (key === "usaMedicamento")
+                        return (
+                          <div
+                            key={key}
+                            className="col-span-2 flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
+                          >
+                            <span className="material-icons-outlined text-gray-400 text-lg">
+                              medication
+                            </span>
+                            <div className="flex-1">
+                              <p className="text-xs font-semibold text-gray-700">
+                                Usa medicação
+                              </p>
+                            </div>
+                            <input
+                              name={key}
+                              type="checkbox"
+                              checked={!!editing[key]}
+                              onChange={handleEditChange}
+                              className="w-5 h-5 accent-slate-700 cursor-pointer"
+                            />
+                          </div>
                         );
 
                       if (key === "isAdmin")
@@ -1527,12 +1918,7 @@ export default function GerenciarRegistros() {
                               name={key}
                               type="checkbox"
                               checked={!!editing[key]}
-                              onChange={(e) =>
-                                setEditing((p) => ({
-                                  ...p,
-                                  [e.target.name]: e.target.checked,
-                                }))
-                              }
+                              onChange={handleEditChange}
                               className="w-5 h-5 accent-slate-700 cursor-pointer"
                             />
                           </div>
@@ -1556,12 +1942,7 @@ export default function GerenciarRegistros() {
                                   name={key}
                                   type={showPass ? "text" : "password"}
                                   value={editing[key] ?? ""}
-                                  onChange={(e) =>
-                                    setEditing((p) => ({
-                                      ...p,
-                                      [e.target.name]: e.target.value,
-                                    }))
-                                  }
+                                  onChange={handleEditChange}
                                   className="w-full pl-11 pr-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 transition"
                                 />
                               </div>
@@ -1579,6 +1960,10 @@ export default function GerenciarRegistros() {
                           </div>
                         );
 
+                      if (key === "infoMedicamentos" && !editing.usaMedicamento) {
+                        return null;
+                      }
+
                       return (
                         <div
                           key={key}
@@ -1594,12 +1979,7 @@ export default function GerenciarRegistros() {
                             <input
                               name={key}
                               value={editing[key] ?? ""}
-                              onChange={(e) =>
-                                setEditing((p) => ({
-                                  ...p,
-                                  [e.target.name]: e.target.value,
-                                }))
-                              }
+                              onChange={handleEditChange}
                               className="w-full pl-11 pr-4 py-2.5 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 transition"
                             />
                           </div>

@@ -29,6 +29,7 @@ function maskCEP(value) {
 
 const schema = yup.object().shape({
   nomeFantasia: yup.string().required("Nome fantasia é obrigatório"),
+  razaoSocial: yup.string(),
   cnpj: yup
     .string()
     .matches(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/, "CNPJ inválido. Ex: 00.000.000/0000-00")
@@ -38,6 +39,7 @@ const schema = yup.object().shape({
     .matches(/^\(\d{2}\)\s\d{5}-\d{4}$/, "Telefone inválido. Ex: (99) 99999-9999")
     .required("Telefone é obrigatório"),
   email: yup.string().email("E-mail inválido").required("E-mail é obrigatório"),
+  contatoRhNome: yup.string(),
   cep: yup
     .string()
     .matches(/^\d{5}-\d{3}$/, "CEP inválido. Ex: 00000-000")
@@ -52,8 +54,10 @@ const schema = yup.object().shape({
 function CadastroEmpresa() {
   const [form, setForm] = useState({
     nomeFantasia: "",
+    razaoSocial: "",
     cnpj: "",
     telefone: "",
+    contatoRhNome: "",
     email: "",
     cep: "",
     cidade: "",
@@ -94,8 +98,10 @@ function CadastroEmpresa() {
       // enviar para json-server
       await api.post("/empresas", {
         nomeFantasia:   form.nomeFantasia,
+        razaoSocial:    form.razaoSocial || undefined,
         cnpj:           form.cnpj,
         telefone:       form.telefone,
+        contatoRhNome:  form.contatoRhNome || undefined,
         contatoRhEmail: form.email,
         endereco: `${form.rua}, ${form.numero}${form.complemento ? ` - ${form.complemento}` : ""} - ${form.bairro}, ${form.cidade} - CEP ${form.cep}`,
       });
@@ -103,8 +109,10 @@ function CadastroEmpresa() {
       // limpar
       setForm({
         nomeFantasia: "",
+        razaoSocial: "",
         cnpj: "",
         telefone: "",
+        contatoRhNome: "",
         email: "",
         cep: "",
         cidade: "",
@@ -120,6 +128,10 @@ function CadastroEmpresa() {
           newErrors[error.path] = error.message;
         });
         setErrors(newErrors);
+      } else if (err.response?.status === 409) {
+        setErrors((prev) => ({ ...prev, cnpj: "Este CNPJ já está cadastrado" }));
+      } else {
+        alert("Erro ao cadastrar empresa!");
       }
     }
     setLoading(false);
@@ -154,6 +166,21 @@ function CadastroEmpresa() {
               required
             />
             {errors.nomeFantasia && <span className="text-red-500 text-xs ml-2 block mt-1">{errors.nomeFantasia}</span>}
+          </div>
+          <div className="relative">
+            <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
+              domain
+            </span>
+            <input
+              type="text"
+              name="razaoSocial"
+              value={form.razaoSocial}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              placeholder="Razão social (opcional)"
+              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.razaoSocial ? "border-red-400" : "border-gray-200"}`}
+            />
+            {errors.razaoSocial && <span className="text-red-500 text-xs ml-2 block mt-1">{errors.razaoSocial}</span>}
           </div>
           <div className="relative">
             <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
@@ -206,6 +233,21 @@ function CadastroEmpresa() {
               required
             />
             {errors.email && <span className="text-red-500 text-xs ml-2 block mt-1">{errors.email}</span>}
+          </div>
+          <div className="relative">
+            <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">
+              badge
+            </span>
+            <input
+              type="text"
+              name="contatoRhNome"
+              value={form.contatoRhNome}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              placeholder="Nome do contato RH (opcional)"
+              className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50 transition ${errors.contatoRhNome ? "border-red-400" : "border-gray-200"}`}
+            />
+            {errors.contatoRhNome && <span className="text-red-500 text-xs ml-2 block mt-1">{errors.contatoRhNome}</span>}
           </div>
           <div className="relative">
             <span className="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-blue-400">

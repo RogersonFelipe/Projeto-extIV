@@ -1,9 +1,53 @@
 import { useEffect, useState } from "react";
 import api from "../../api/axios";
-import { blankAval } from "../constants";
+import { blankAval, countAnswered } from "../constants";
 
 const API_AVAL = "/avaliacoes";
 const API_ALUNO = "/pessoas";
+
+function normalizeAvaliacao(aval) {
+  const base = {
+    ...blankAval(),
+    ...aval,
+  };
+  const answered = countAnswered(base);
+
+  return {
+    ...base,
+    alunoId: String(aval.pessoa?.id ?? aval.pessoaId ?? ""),
+    pessoaNome: aval.pessoa?.nome ?? aval.pessoaNome ?? "",
+    professor: aval.professorResponsavel ?? aval.professor ?? "",
+    observacoes: aval.q47 ?? aval.observacoes ?? "",
+    recomendacoes: aval.q48 ?? aval.recomendacoes ?? "",
+    statusAvaliacao:
+      aval.statusAvaliacao ?? (answered === 46 ? "finalizado" : "em_aberto"),
+  };
+}
+
+function buildBasePayload(form) {
+  return {
+    pessoaId: Number(form.alunoId),
+    professorResponsavel: form.professor?.trim() || undefined,
+    tipo: form.tipo || undefined,
+    dataAvaliacao: form.dataAvaliacao || undefined,
+    q47: form.observacoes?.trim() || form.q47?.trim() || undefined,
+    q48: form.recomendacoes?.trim() || form.q48?.trim() || undefined,
+  };
+}
+
+function buildQuestionarioPayload(form) {
+  const payload = {
+    q47: form.q47?.trim() || undefined,
+    q48: form.q48?.trim() || undefined,
+  };
+
+  for (let i = 1; i <= 46; i++) {
+    const key = `q${String(i).padStart(2, "0")}`;
+    payload[key] = form[key] ?? null;
+  }
+
+  return payload;
+}
 
 export function useAvaliacoes() {
   const [lista, setLista] = useState([]);
@@ -33,7 +77,7 @@ export function useAvaliacoes() {
       api.get(API_ALUNO).catch(() => ({ data: [] })),
     ])
       .then(([av, al]) => {
-        setLista(av.data);
+        setLista(av.data.map(normalizeAvaliacao));
         setAlunos(al.data);
       })
       .finally(() => setLoading(false));
@@ -70,13 +114,8 @@ export function useAvaliacoes() {
     e.preventDefault();
     if (!validateBase(createForm, setCreateErr)) return;
     try {
-      const { alunoId, professor, pessoaNome: _n, ...rest } = createForm;
-      const { data } = await api.post(API_AVAL, {
-        ...rest,
-        pessoaId: Number(alunoId),
-        professorResponsavel: professor,
-      });
-      setLista((l) => [...l, data]);
+      const { data } = await api.post(API_AVAL, buildBasePayload(createForm));
+      setLista((l) => [...l, normalizeAvaliacao(data)]);
       setShowCreate(false);
       setCreateForm(blankAval());
       setCreateErr({});
@@ -87,12 +126,7 @@ export function useAvaliacoes() {
 
   /* ── Editar ── */
   function openEdit(aval) {
-    setEditForm({
-      ...aval,
-      alunoId: aval.pessoa?.id ?? aval.pessoaId ?? "",
-      pessoaNome: aval.pessoa?.nome ?? "",
-      professor: aval.professorResponsavel ?? "",
-    });
+    setEditForm(normalizeAvaliacao(aval));
     setEditErr({});
     setEditTab("dados");
     setShowEdit(true);
@@ -120,20 +154,11 @@ export function useAvaliacoes() {
       return;
     }
     try {
-      const {
-        alunoId,
-        professor,
-        pessoaNome: _n,
-        pessoa: _p,
-        professorResponsavel: _pr,
-        ...rest
-      } = editForm;
-      const { data } = await api.patch(`${API_AVAL}/${editForm.id}`, {
-        ...rest,
-        pessoaId: Number(alunoId),
-        professorResponsavel: professor,
-      });
-      setLista((l) => l.map((a) => (a.id === data.id ? data : a)));
+      const { data } = await api.patch(
+        `${API_AVAL}/${editForm.id}`,
+        buildBasePayload(editForm),
+      );
+      setLista((l) => l.map((a) => (a.id === data.id ? normalizeAvaliacao(data) : a)));
       setShowEdit(false);
     } catch {
       alert("Erro ao salvar.");
@@ -142,11 +167,7 @@ export function useAvaliacoes() {
 
   /* ── Responder ── */
   function openResponder(aval) {
-    setRespForm({
-      ...aval,
-      pessoaNome: aval.pessoa?.nome ?? "",
-      professor: aval.professorResponsavel ?? "",
-    });
+    setRespForm(normalizeAvaliacao(aval));
     setShowResponder(true);
   }
 
@@ -163,8 +184,11 @@ export function useAvaliacoes() {
   async function handleRespSave(e) {
     e.preventDefault();
     try {
-      const { data } = await api.patch(`${API_AVAL}/${respForm.id}`, respForm);
-      setLista((l) => l.map((a) => (a.id === data.id ? data : a)));
+      const { data } = await api.patch(
+        `${API_AVAL}/${respForm.id}`,
+        buildQuestionarioPayload(respForm),
+      );
+      setLista((l) => l.map((a) => (a.id === data.id ? normalizeAvaliacao(data) : a)));
       setShowResponder(false);
     } catch {
       alert("Erro ao salvar respostas.");
@@ -173,11 +197,7 @@ export function useAvaliacoes() {
 
   /* ── Visualizar ── */
   function openView(aval) {
-    setViewSelected({
-      ...aval,
-      pessoaNome: aval.pessoa?.nome ?? "",
-      professor: aval.professorResponsavel ?? "",
-    });
+    setViewSelected(normalizeAvaliacao(aval));
     setViewTab("dados");
     setShowView(true);
   }

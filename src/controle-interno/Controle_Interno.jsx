@@ -42,6 +42,55 @@ const schema = yup.object({
     .required("Data de ingresso é obrigatória"),
 });
 
+function toIsoDate(value) {
+  if (!value) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return undefined;
+  const [day, month, year] = value.split("/");
+  return `${year}-${month}-${day}`;
+}
+
+function toBrDate(value) {
+  if (!value) return "";
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+function normalizeAvaliacao(item) {
+  return {
+    ...item,
+    alunoId: item.pessoa?.id ? String(item.pessoa.id) : "",
+    alunoNome: item.pessoa?.nome || "",
+    ingresso: toBrDate(item.ingresso || item.dataAvaliacao),
+    aval1: toBrDate(item.aval1),
+    aval2: toBrDate(item.aval2),
+    entrevistaPais1: toBrDate(item.entrevistaPais1),
+    entrevistaPais2: toBrDate(item.entrevistaPais2),
+    resultado:
+      item.resultado ||
+      (item.tipo === "acompanhamento" ? "aprovado" : "em-andamento"),
+    observacao: item.observacao || item.q47 || "",
+  };
+}
+
+function mapAvaliacaoPayload(form) {
+  return {
+    pessoaId: Number(form.alunoId),
+    dataAvaliacao: toIsoDate(form.ingresso),
+    ingresso: toIsoDate(form.ingresso),
+    aval1: toIsoDate(form.aval1),
+    aval2: toIsoDate(form.aval2),
+    entrevistaPais1: toIsoDate(form.entrevistaPais1),
+    entrevistaPais2: toIsoDate(form.entrevistaPais2),
+    tipo: form.resultado === "em-andamento" ? "inicial" : "acompanhamento",
+    resultado: form.resultado,
+    observacao: form.observacao?.trim() || undefined,
+    q47: form.observacao?.trim() || undefined,
+  };
+}
+
 /* ── Modal wrapper ── */
 function Modal({ children, onClose }) {
   useEffect(() => {
@@ -546,7 +595,7 @@ export default function Controle_Interno() {
     setLoading(true);
     try {
       const res = await api.get("/avaliacoes");
-      setRegistros(res.data);
+      setRegistros(res.data.map(normalizeAvaliacao));
     } catch {
       setRegistros([]);
     } finally {
@@ -568,7 +617,7 @@ export default function Controle_Interno() {
     setCreating(true);
     try {
       await schema.validate(form, { abortEarly: false });
-      await api.post("/avaliacoes", form);
+      await api.post("/avaliacoes", mapAvaliacaoPayload(form));
       setShowCreate(false);
       setForm({ ...BLANK });
       setFormErr({});
@@ -592,7 +641,7 @@ export default function Controle_Interno() {
     setSaving(true);
     try {
       await schema.validate(editing, { abortEarly: false });
-      await api.patch(`/avaliacoes/${editing.id}`, editing);
+      await api.patch(`/avaliacoes/${editing.id}`, mapAvaliacaoPayload(editing));
       setEditing(null);
       await load();
     } catch (err) {

@@ -10,21 +10,10 @@ import {
   Legend,
 } from "chart.js";
 import { useSelector } from "react-redux";
+import { useState, useEffect } from "react";
+import api from "../api/axios";
 
 Chart.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
-
-const barData = {
-  labels: ["Janeiro", "Fevereiro", "Março", "Abril"],
-  datasets: [
-    {
-      label: "Alunos",
-      data: [12, 19, 8, 50],
-      backgroundColor: "rgba(51, 65, 85, 0.75)",
-      borderRadius: 6,
-      borderSkipped: false,
-    },
-  ],
-};
 
 const barOptions = {
   responsive: true,
@@ -38,22 +27,6 @@ const barOptions = {
   },
 };
 
-const pieData = {
-  labels: ["Inclusos", "Em andamento", "Finalizados"],
-  datasets: [
-    {
-      data: [10, 5, 7],
-      backgroundColor: [
-        "rgba(51, 65, 85, 0.8)",
-        "rgba(217, 119, 6, 0.75)",
-        "rgba(5, 150, 105, 0.75)",
-      ],
-      borderWidth: 2,
-      borderColor: "#fff",
-    },
-  ],
-};
-
 const pieOptions = {
   responsive: true,
   plugins: {
@@ -61,15 +34,157 @@ const pieOptions = {
   },
 };
 
-const kpis = [
-  { label: "Alunos Ativos", value: "89", icon: "school", trend: "+4 este mês" },
-  { label: "Encaminhados", value: "34", icon: "assignment_ind", trend: "+2 este mês" },
-  { label: "Avaliações", value: "22", icon: "rate_review", trend: "3 em aberto" },
-  { label: "Empresas", value: "12", icon: "business", trend: "+1 este mês" },
-];
-
 function Home() {
   const usuario = useSelector((state) => state.auth.usuario);
+  const [barData, setBarData] = useState({
+    labels: ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"],
+    datasets: [
+      {
+        label: "Alunos",
+        data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        backgroundColor: "rgba(51, 65, 85, 0.75)",
+        borderRadius: 6,
+        borderSkipped: false,
+      },
+    ],
+  });
+
+  const [pieData, setPieData] = useState({
+    labels: ["Em andamento", "Finalizados"],
+    datasets: [
+      {
+        data: [0, 0],
+        backgroundColor: [
+          "rgba(217, 119, 6, 0.75)",
+          "rgba(5, 150, 105, 0.75)",
+        ],
+        borderWidth: 2,
+        borderColor: "#fff",
+      },
+    ],
+  });
+
+  const [kpis, setKpis] = useState([
+    { label: "Alunos Ativos", value: "0", icon: "school", trend: "carregando..." },
+    { label: "Encaminhados", value: "0", icon: "assignment_ind", trend: "carregando..." },
+    { label: "Avaliações", value: "0", icon: "rate_review", trend: "carregando..." },
+    { label: "Empresas", value: "0", icon: "business", trend: "carregando..." },
+  ]);
+
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        
+        // Buscar dados em paralelo
+        const [pessoasRes, encaminhamentosRes, avaliacoesRes, empresasRes] = await Promise.all([
+          api.get("/pessoas?skip=0&take=1000"),
+          api.get("/encaminhamentos?skip=0&take=1000"),
+          api.get("/avaliacoes?skip=0&take=1000"),
+          api.get("/empresas?skip=0&take=1000"),
+        ]);
+
+        // Extrair dados (pode ser um array ou um objeto com propriedade data)
+        const pessoas = Array.isArray(pessoasRes.data) ? pessoasRes.data : pessoasRes.data?.data || [];
+        const encaminhamentos = Array.isArray(encaminhamentosRes.data) ? encaminhamentosRes.data : encaminhamentosRes.data?.data || [];
+        const avaliacoes = Array.isArray(avaliacoesRes.data) ? avaliacoesRes.data : avaliacoesRes.data?.data || [];
+        const empresas = Array.isArray(empresasRes.data) ? empresasRes.data : empresasRes.data?.data || [];
+
+        // Processar dados para gráfico de barras (alunos por mês - usando dataEntrada ou createdAt)
+        const monthCounts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        const currentYear = new Date().getFullYear();
+        
+        pessoas.forEach((pessoa) => {
+          const dateStr = pessoa.dataEntrada || pessoa.createdAt;
+          if (dateStr) {
+            const date = new Date(dateStr);
+            // Verificar se é do ano atual ou considerando para gráfico
+            const month = date.getMonth();
+            if (!isNaN(month)) {
+              monthCounts[month]++;
+            }
+          }
+        });
+
+        setBarData((prev) => ({
+          ...prev,
+          datasets: [
+            {
+              ...prev.datasets[0],
+              data: monthCounts,
+            },
+          ],
+        }));
+
+        // Processar dados para gráfico de pizza (status avaliações)
+        // Status esperados: em_aberto, finalizado, cancelado
+        const statusCounts = { "Em andamento": 0, "Finalizados": 0 };
+        
+        avaliacoes.forEach((avaliacao) => {
+          const status = avaliacao.statusAvaliacao || "em_aberto";
+          
+          // Mapeamento dos status para as label do gráfico
+          if (status === "finalizado") {
+            statusCounts["Finalizados"]++;
+          } else {
+            statusCounts["Em andamento"]++;
+          }
+        });
+
+        setPieData((prev) => ({
+          ...prev,
+          datasets: [
+            {
+              ...prev.datasets[0],
+              data: [statusCounts["Em andamento"], statusCounts["Finalizados"]],
+            },
+          ],
+        }));
+
+        // Contar avaliações ativas (não finalizadas)
+        const aval_abertas = avaliacoes.filter(
+          (a) => a.statusAvaliacao !== "finalizado"
+        ).length;
+
+        // Atualizar KPIs
+        setKpis([
+          { 
+            label: "Alunos Ativos", 
+            value: pessoas.length.toString(), 
+            icon: "school", 
+            trend: `${pessoas.length} no total` 
+          },
+          { 
+            label: "Encaminhados", 
+            value: encaminhamentos.length.toString(), 
+            icon: "assignment_ind", 
+            trend: `${encaminhamentos.length} registrados` 
+          },
+          { 
+            label: "Avaliações", 
+            value: avaliacoes.length.toString(), 
+            icon: "rate_review", 
+            trend: `${aval_abertas} em aberto` 
+          },
+          { 
+            label: "Empresas", 
+            value: empresas.length.toString(), 
+            icon: "business", 
+            trend: `${empresas.length} parceiras` 
+          },
+        ]);
+      } catch (error) {
+        console.error("Erro ao buscar dados do dashboard:", error);
+        // Manter dados padrão em caso de erro
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
 
   return (
     <div className="max-w-6xl mx-auto flex flex-col gap-4">
@@ -119,7 +234,9 @@ function Home() {
         {kpis.map((kpi) => (
           <div
             key={kpi.label}
-            className="bg-white border border-gray-200 rounded-lg p-4 flex flex-col gap-3"
+            className={`bg-white border border-gray-200 rounded-lg p-4 flex flex-col gap-3 transition-opacity ${
+              loading ? "opacity-60" : ""
+            }`}
           >
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -131,7 +248,9 @@ function Home() {
                 </span>
               </div>
             </div>
-            <p className="text-2xl font-bold text-gray-800 leading-none">{kpi.value}</p>
+            <p className={`text-2xl font-bold text-gray-800 leading-none ${loading ? "animate-pulse" : ""}`}>
+              {kpi.value}
+            </p>
             <p className="text-xs text-gray-400">{kpi.trend}</p>
           </div>
         ))}
@@ -143,14 +262,20 @@ function Home() {
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
             <div>
               <h2 className="text-sm font-bold text-gray-800">Alunos por mês</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Matrículas registradas em 2024</p>
+              <p className="text-xs text-gray-400 mt-0.5">Matrículas registradas</p>
             </div>
             <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
               <span className="material-icons-outlined text-slate-600 text-base">bar_chart</span>
             </div>
           </div>
-          <div className="relative h-52">
-            <Bar data={barData} options={{ ...barOptions, maintainAspectRatio: false }} />
+          <div className={`relative h-52 ${loading ? "opacity-50" : ""}`}>
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <span className="text-gray-400 text-sm">Carregando...</span>
+              </div>
+            ) : (
+              <Bar data={barData} options={{ ...barOptions, maintainAspectRatio: false }} />
+            )}
           </div>
         </div>
 
@@ -164,8 +289,14 @@ function Home() {
               <span className="material-icons-outlined text-slate-600 text-base">pie_chart</span>
             </div>
           </div>
-          <div className="relative h-52">
-            <Pie data={pieData} options={{ ...pieOptions, maintainAspectRatio: false }} />
+          <div className={`relative h-52 ${loading ? "opacity-50" : ""}`}>
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <span className="text-gray-400 text-sm">Carregando...</span>
+              </div>
+            ) : (
+              <Pie data={pieData} options={{ ...pieOptions, maintainAspectRatio: false }} />
+            )}
           </div>
         </div>
       </div>
