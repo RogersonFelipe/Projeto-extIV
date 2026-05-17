@@ -9,8 +9,9 @@ const schema = yup.object().shape({
 });
 
 function Login() {
-  const [form, setForm] = useState({ email: "", senha: "" });
-  const [errors, setErrors] = useState({});
+  const [form,      setForm]      = useState({ email: "", senha: "" });
+  const [errors,    setErrors]    = useState({});
+  const [showSenha, setShowSenha] = useState(false);
   const dispatch = useDispatch();
   const { loading, error } = useSelector((state) => state.auth);
 
@@ -67,16 +68,28 @@ function Login() {
             {errors.email && <span className="text-red-500 text-xs ml-2 block mt-1">{errors.email}</span>}
           </div>
           <div>
-            <input
-              type="password"
-              name="senha"
-              value={form.senha}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              placeholder="Senha"
-              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${errors.senha ? "border-red-400" : "border-gray-300"}`}
-              required
-            />
+            <div className="flex gap-2">
+              <input
+                type={showSenha ? "text" : "password"}
+                name="senha"
+                value={form.senha}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                placeholder="Senha"
+                className={`flex-1 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${errors.senha ? "border-red-400" : "border-gray-300"}`}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowSenha((s) => !s)}
+                className="px-3 border border-gray-300 rounded-lg text-gray-500 hover:bg-gray-100 transition"
+                tabIndex={-1}
+              >
+                <span className="material-icons-outlined text-base">
+                  {showSenha ? "visibility_off" : "visibility"}
+                </span>
+              </button>
+            </div>
             {errors.senha && <span className="text-red-500 text-xs ml-2 block mt-1">{errors.senha}</span>}
           </div>
           {error && <span className="text-red-500 text-xs ml-2 block mt-1">{error}</span>}
