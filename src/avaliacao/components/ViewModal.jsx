@@ -1,5 +1,5 @@
 import { Modal, ModalHeader } from "../../components/ui/Modal";
-import { PERGUNTAS, OPCOES, TIPO_LABEL, countAnswered } from "../constants";
+import { PERGUNTAS, OPCOES, TIPO_LABEL, RESULTADO_META, countAnswered } from "../constants";
 import { fmtData } from "../../utils/date";
 
 const TABS = [
@@ -40,8 +40,9 @@ export function ViewModal({ viewSelected, viewTab, setViewTab, onClose }) {
           {[
             { icon: "school",        label: "Aluno",     value: viewSelected.pessoaNome,                           full: true  },
             { icon: "person",        label: "Professor", value: viewSelected.professor,                            full: true  },
-            { icon: "category",      label: "Tipo",      value: TIPO_LABEL[viewSelected.tipo] ?? viewSelected.tipo            },
-            { icon: "calendar_today",label: "Data",      value: fmtData(viewSelected.dataAvaliacao)                           },
+            { icon: "category",      label: "Tipo",      value: TIPO_LABEL[viewSelected.tipo] ?? viewSelected.tipo           },
+            { icon: "calendar_today",label: "Data",      value: fmtData(viewSelected.dataAvaliacao)                          },
+            { icon: "fact_check",    label: "Resultado", value: RESULTADO_META[viewSelected.resultado ?? "em-andamento"]?.label },
           ].map((f) => (
             <div
               key={f.label}

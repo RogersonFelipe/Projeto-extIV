@@ -38,7 +38,9 @@ export default function Usuarios_Encaminhados() {
 
       {/* Busca */}
       <div className="bg-white border border-gray-200 rounded-lg flex items-center px-4 py-3 gap-3">
-        <span className="material-icons-outlined text-gray-400 text-base">search</span>
+        <span className="material-icons-outlined text-gray-400 text-base">
+          search
+        </span>
         <input
           value={enc.query}
           onChange={(e) => enc.setQuery(e.target.value)}
@@ -49,7 +51,10 @@ export default function Usuarios_Encaminhados() {
           {enc.filtered.length} registro{enc.filtered.length !== 1 ? "s" : ""}
         </span>
         {enc.query && (
-          <button onClick={() => enc.setQuery("")} className="text-gray-400 hover:text-gray-600">
+          <button
+            onClick={() => enc.setQuery("")}
+            className="text-gray-400 hover:text-gray-600"
+          >
             <span className="material-icons-outlined text-sm">close</span>
           </button>
         )}
@@ -59,7 +64,9 @@ export default function Usuarios_Encaminhados() {
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         {enc.loading ? (
           <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
-            <span className="material-icons-outlined animate-spin text-xl">autorenew</span>
+            <span className="material-icons-outlined animate-spin text-xl">
+              autorenew
+            </span>
             <span className="text-sm">Carregando...</span>
           </div>
         ) : enc.filtered.length === 0 ? (
@@ -71,46 +78,91 @@ export default function Usuarios_Encaminhados() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3 w-10">#</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">Aluno</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Empresa</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Função</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Admissão</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">Desligamento</th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">Contato RH</th>
-                <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3">Ações</th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3 w-10">
+                  #
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                  Aluno
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                  Status
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden md:table-cell">
+                  Empresa
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">
+                  Função
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">
+                  Admissão
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">
+                  Desligamento
+                </th>
+                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">
+                  Contato RH
+                </th>
+                <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3">
+                  Ações
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {enc.filtered.map((item, idx) => (
-                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                <tr
+                  key={item.id}
+                  className="hover:bg-gray-50 transition-colors"
+                >
                   <td className="px-5 py-3.5 text-xs text-gray-400 font-mono">
                     {String(idx + 1).padStart(2, "0")}
                   </td>
                   <td className="px-4 py-3.5 font-semibold text-gray-800">
                     {item.pessoa?.nome || "—"}
                   </td>
-                  <td className="px-4 py-3.5 text-gray-600 hidden md:table-cell">
-                    {item.empresa?.nomeFantasia || item.empresa?.razaoSocial || "—"}
+                  <td className="px-4 py-3.5">
+                    {item.status === "desligado" ? (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                        Desligado
+                      </span>
+                    ) : (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                        Ativo
+                      </span>
+                    )}
                   </td>
-                  <td className="px-4 py-3.5 text-gray-500 hidden lg:table-cell">{item.funcao || "—"}</td>
-                  <td className="px-4 py-3.5 text-gray-500 hidden lg:table-cell">{fmtData(item.dataAdmissao)}</td>
-                  <td className="px-4 py-3.5 text-gray-500 hidden xl:table-cell">{fmtData(item.dataProvavelDesligamento)}</td>
-                  <td className="px-4 py-3.5 text-gray-500 hidden xl:table-cell">{item.contatoRh || "—"}</td>
+                  <td className="px-4 py-3.5 text-gray-600 hidden md:table-cell">
+                    {item.empresa?.nomeFantasia ||
+                      item.empresa?.razaoSocial ||
+                      "—"}
+                  </td>
+                  <td className="px-4 py-3.5 text-gray-500 hidden lg:table-cell">
+                    {item.funcao || "—"}
+                  </td>
+                  <td className="px-4 py-3.5 text-gray-500 hidden lg:table-cell">
+                    {fmtData(item.dataAdmissao)}
+                  </td>
+                  <td className="px-4 py-3.5 text-gray-500 hidden xl:table-cell">
+                    {fmtData(item.dataProvavelDesligamento)}
+                  </td>
+                  <td className="px-4 py-3.5 text-gray-500 hidden xl:table-cell">
+                    {item.contatoRh || "—"}
+                  </td>
                   <td className="px-5 py-3.5">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={() => enc.openEdit(item)}
                         className="text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-md transition"
                       >
                         Editar
                       </button>
-                      <button
-                        onClick={() => enc.excluir(item.id)}
-                        className="text-xs font-medium text-red-500 hover:text-red-700 border border-red-100 hover:border-red-200 px-3 py-1.5 rounded-md transition"
-                      >
-                        Excluir
-                      </button>
+                      {item.status !== "desligado" && (
+                        <button
+                          onClick={() => enc.abrirDesativar(item.id)}
+                          className="text-xs font-medium text-orange-500 hover:text-orange-700 border border-orange-100 hover:border-orange-200 px-3 py-1.5 rounded-md transition"
+                        >
+                          Desativar
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -139,12 +191,18 @@ export default function Usuarios_Encaminhados() {
               handleChange={enc.handleChange}
             />
             <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-              <button type="button" onClick={() => enc.setShowCreate(false)}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+              <button
+                type="button"
+                onClick={() => enc.setShowCreate(false)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+              >
                 Cancelar
               </button>
-              <button type="submit" disabled={enc.saving}
-                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold transition disabled:opacity-60">
+              <button
+                type="submit"
+                disabled={enc.saving}
+                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold transition disabled:opacity-60"
+              >
                 {enc.saving ? "Salvando..." : "Salvar Encaminhamento"}
               </button>
             </div>
@@ -171,16 +229,64 @@ export default function Usuarios_Encaminhados() {
               handleChange={enc.handleChange}
             />
             <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-              <button type="button" onClick={() => enc.setShowEdit(false)}
-                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+              <button
+                type="button"
+                onClick={() => enc.setShowEdit(false)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+              >
                 Cancelar
               </button>
-              <button type="submit" disabled={enc.saving}
-                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold transition disabled:opacity-60">
+              <button
+                type="submit"
+                disabled={enc.saving}
+                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold transition disabled:opacity-60"
+              >
                 {enc.saving ? "Salvando..." : "Salvar Alterações"}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Modal — Desativar */}
+      {enc.desativarId && (
+        <Modal onClose={() => enc.setDesativarId(null)}>
+          <ModalHeader
+            title="Desativar Encaminhamento"
+            subtitle="Informe o motivo"
+            icon="block"
+            onClose={() => enc.setDesativarId(null)}
+            color="from-orange-500 to-orange-400"
+          />
+          <div className="p-6 flex flex-col gap-4">
+            <textarea
+              value={enc.motivo}
+              onChange={(e) => enc.setMotivo(e.target.value)}
+              placeholder="Descreva o motivo do desligamento..."
+              rows={3}
+              className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none transition ${enc.motivoErr ? "border-red-400" : "border-gray-200"}`}
+            />
+            {enc.motivoErr && (
+              <span className="text-red-500 text-xs">{enc.motivoErr}</span>
+            )}
+            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => enc.setDesativarId(null)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={enc.confirmarDesativar}
+                disabled={enc.saving}
+                className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition disabled:opacity-60"
+              >
+                {enc.saving ? "Desativando..." : "Confirmar"}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

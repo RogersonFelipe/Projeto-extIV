@@ -13,6 +13,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { logout } from "./store/authSlice";
 import Usuarios_Encaminhados from "./usuarios-encaminhados/Usuarios_Encaminhados";
 import Recuperar_Senha from "./login/recuperar-senha/Recuperar_Senha";
+import Nova_Senha from "./login/nova-senha/Nova_Senha";
 import Avaliacao from "./avaliacao/Avaliacao";
 import Perfil from "./perfil/Perfil";
 import GerenciarRegistros from "./admin/GerenciarRegistros";
@@ -270,6 +271,7 @@ function App() {
                 }
               />
               <Route path="/recuperar-senha" element={<Recuperar_Senha />} />
+              <Route path="/nova-senha" element={<Nova_Senha />} />
               <Route
                 path="/avaliacao"
                 element={

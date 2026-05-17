@@ -20,11 +20,15 @@ export function useEncaminhamentos() {
   const [saving,  setSaving]  = useState(false);
   const [query,   setQuery]   = useState("");
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [showEdit,   setShowEdit]   = useState(false);
-  const [form,       setForm]       = useState(BLANK);
-  const [formErr,    setFormErr]    = useState({});
-  const [editId,     setEditId]     = useState(null);
+  const [showCreate,    setShowCreate]    = useState(false);
+  const [showEdit,      setShowEdit]      = useState(false);
+  const [form,          setForm]          = useState(BLANK);
+  const [formErr,       setFormErr]       = useState({});
+  const [editId,        setEditId]        = useState(null);
+
+  const [desativarId,   setDesativarId]   = useState(null);
+  const [motivo,        setMotivo]        = useState("");
+  const [motivoErr,     setMotivoErr]     = useState("");
 
   useEffect(() => { loadAll(); }, []);
 
@@ -90,8 +94,9 @@ export function useEncaminhamentos() {
       });
       setShowCreate(false);
       await loadAll();
-    } catch {
-      alert("Erro ao salvar.");
+    } catch (err) {
+      const msg = err.response?.data?.message || "Erro ao salvar.";
+      setFormErr((p) => ({ ...p, alunoId: msg }));
     } finally {
       setSaving(false);
     }
@@ -135,13 +140,27 @@ export function useEncaminhamentos() {
     }
   }
 
-  async function excluir(id) {
-    if (!confirm("Excluir este registro permanentemente?")) return;
+  function abrirDesativar(id) {
+    setDesativarId(id);
+    setMotivo("");
+    setMotivoErr("");
+  }
+
+  async function confirmarDesativar() {
+    if (!motivo.trim()) { setMotivoErr("Informe o motivo"); return; }
+    setSaving(true);
     try {
-      await api.delete(`/encaminhamentos/${id}`);
+      await api.patch(`/encaminhamentos/${desativarId}`, {
+        status: "desligado",
+        motivoDesligamento: motivo.trim(),
+      });
+      setDesativarId(null);
+      setMotivo("");
       await loadAll();
     } catch {
-      alert("Erro ao excluir.");
+      alert("Erro ao desativar.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -164,7 +183,8 @@ export function useEncaminhamentos() {
     handleChange,
     openCreate, handleCreate,
     openEdit,   handleEdit,
-    excluir,
+    desativarId, abrirDesativar, confirmarDesativar, setDesativarId,
+    motivo, setMotivo, motivoErr,
     loadAll,
   };
 }

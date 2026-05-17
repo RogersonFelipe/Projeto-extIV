@@ -1,4 +1,4 @@
-import { TIPO_LABEL, STATUS_META, countAnswered } from "../constants";
+import { TIPO_LABEL, RESULTADO_META, countAnswered } from "../constants";
 import { fmtData } from "../../utils/date";
 
 export function AvaliacaoTable({ lista, filtro, tabAtiva, openEdit, openView, openResponder }) {
@@ -38,9 +38,8 @@ export function AvaliacaoTable({ lista, filtro, tabAtiva, openEdit, openView, op
         {listaFiltrada.map((a) => {
           const answered   = countAnswered(a);
           const pct        = Math.round((answered / 46) * 100);
-          const statusKey  = a.statusAvaliacao ?? (answered === 46 ? "finalizado" : "em_aberto");
-          const sm         = STATUS_META[statusKey] ?? STATUS_META.em_aberto;
-          const bloqueadoResponder = statusKey === "finalizado" || statusKey === "cancelado";
+          const rm         = RESULTADO_META[a.resultado ?? "em-andamento"] ?? RESULTADO_META["em-andamento"];
+          const bloqueadoResponder = a.resultado === "aprovado" || a.resultado === "reprovado";
           return (
             <tr key={a.id} className="hover:bg-gray-50 transition-colors">
               <td className="px-5 py-3.5 font-semibold text-gray-800">{a.pessoa?.nome || a.pessoaNome || "—"}</td>
@@ -60,8 +59,8 @@ export function AvaliacaoTable({ lista, filtro, tabAtiva, openEdit, openView, op
                 </div>
               </td>
               <td className="px-4 py-3.5">
-                <span className={`text-xs font-semibold px-2.5 py-1 rounded-md ${sm.badge}`}>
-                  {sm.label}
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-md ${rm.badge}`}>
+                  {rm.label}
                 </span>
               </td>
               <td className="px-5 py-3.5">

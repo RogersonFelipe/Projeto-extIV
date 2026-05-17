@@ -8,7 +8,6 @@ import { ViewModal }      from "./components/ViewModal";
 
 const ABAS = [
   { key: "todas",          label: "Todas"          },
-  { key: "inicial",        label: "Experiência"    },
   { key: "acompanhamento", label: "Acompanhamento" },
 ];
 
@@ -35,7 +34,7 @@ export default function Avaliacao() {
           </p>
         </div>
         <button
-          onClick={() => { aval.setShowCreate(true); }}
+          onClick={aval.openCreate}
           className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
         >
           <span className="material-icons-outlined text-base">add</span>
@@ -103,6 +102,7 @@ export default function Avaliacao() {
           createForm={aval.createForm}
           createErr={aval.createErr}
           alunos={aval.alunos}
+          encaminhamentos={aval.encaminhamentos}
           handleCreateChange={aval.handleCreateChange}
           handleCreate={aval.handleCreate}
           onClose={() => aval.setShowCreate(false)}
@@ -127,7 +127,9 @@ export default function Avaliacao() {
           respForm={aval.respForm}
           handleRespOpcao={aval.handleRespOpcao}
           handleRespTextChange={aval.handleRespTextChange}
+          handleRespResultado={aval.handleRespResultado}
           handleRespSave={aval.handleRespSave}
+          handleRespSaveWithResultado={aval.handleRespSaveWithResultado}
           onClose={() => aval.setShowResponder(false)}
         />
       )}

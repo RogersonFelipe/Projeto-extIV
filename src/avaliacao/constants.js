@@ -65,6 +65,12 @@ export const STATUS_META = {
   cancelado:  { label: "Cancelado",  badge: "bg-red-50 text-red-600 border border-red-200"         },
 };
 
+export const RESULTADO_META = {
+  "em-andamento": { label: "Em aberto",  badge: "bg-amber-50 text-amber-700 border border-amber-200"  },
+  aprovado:       { label: "Aprovado",   badge: "bg-green-50 text-green-700 border border-green-200"  },
+  reprovado:      { label: "Reprovado",  badge: "bg-red-50 text-red-600 border border-red-200"        },
+};
+
 export function blankAval() {
   const q = {};
   for (let i = 1; i <= 46; i++) q[`q${String(i).padStart(2, "0")}`] = null;
@@ -72,8 +78,9 @@ export function blankAval() {
     alunoId: "",
     pessoaNome: "",
     professor: "",
-    tipo: "inicial",
+    tipo: "acompanhamento",
     dataAvaliacao: "",
+    resultado: "em-andamento",
     q47: "",
     q48: "",
     ...q,
